@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [filterTag, setFilterTag] = useState('ALL')
   const supabase = createClient()
   const router = useRouter()
 
@@ -67,32 +68,76 @@ export default function NotificationsPage() {
     if (type.includes('BOOKING')) return '📅'
     if (type.includes('MAINTENANCE')) return '🔧'
     if (type.includes('AUDIT')) return '📋'
-    if (type.includes('OVERDUE')) return '⚠'
+    if (type.includes('OVERDUE') || type.includes('ALERT')) return '⚠'
     return '🔔'
   }
 
-  const unreadCount = notifications.filter(n => !n.read_at).length
+  const getTag = (n: Notification) => {
+    const t = n.type.toUpperCase()
+    if (t.includes('OVERDUE') || t.includes('ALERT') || t.includes('WARNING')) return 'ALERTS'
+    if (t.includes('APPROVAL') || t.includes('REQUEST') || t.includes('PENDING')) return 'APPROVALS'
+    if (n.entity_type === 'BOOKING' || t.includes('BOOKING')) return 'BOOKINGS'
+    if (n.entity_type === 'MAINTENANCE' || t.includes('MAINTENANCE')) return 'MAINTENANCE'
+    return 'OTHER'
+  }
+
+  const filteredNotifications = notifications.filter(n => {
+    if (filterTag === 'ALL') return true
+    return getTag(n) === filterTag
+  })
+
+  const unreadCount = filteredNotifications.filter(n => !n.read_at).length
+
+  const TAGS = [
+    { id: 'ALL', label: 'All' },
+    { id: 'ALERTS', label: 'Alerts' },
+    { id: 'APPROVALS', label: 'Approvals' },
+    { id: 'BOOKINGS', label: 'Bookings' },
+    { id: 'MAINTENANCE', label: 'Maintenance' },
+  ]
 
   if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
 
   return (
     <div>
-      <div className="flex justify-between items-center" style={{ marginBottom: 'var(--space-lg)' }}>
-        <p className="text-secondary text-sm">{unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}</p>
-        {unreadCount > 0 && (
-          <button className="btn btn-ghost btn-sm" onClick={markAllRead}>Mark all as read</button>
-        )}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+        <div className="flex flex-wrap gap-2">
+          {TAGS.map(tag => (
+            <button
+              key={tag.id}
+              onClick={() => setFilterTag(tag.id)}
+              className={`px-4 py-1.5 text-sm font-medium rounded-full border transition-colors ${
+                filterTag === tag.id 
+                  ? 'bg-primary text-primary-foreground border-primary' 
+                  : 'bg-background border-border text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {tag.label}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <p className="text-secondary text-sm">{unreadCount} unread{unreadCount !== 1 ? 's' : ''}</p>
+          {unreadCount > 0 && (
+            <button className="btn btn-ghost btn-sm" onClick={markAllRead}>Mark all as read</button>
+          )}
+        </div>
       </div>
 
-      {notifications.length === 0 ? (
+      {filteredNotifications.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🔔</div>
           <h3 className="empty-state-title">No notifications</h3>
-          <p className="empty-state-text">You&apos;re all caught up! Notifications will appear here when there are updates.</p>
+          <p className="empty-state-text">
+            {filterTag === 'ALL' 
+              ? "You're all caught up! Notifications will appear here when there are updates."
+              : `No notifications found for ${TAGS.find(t => t.id === filterTag)?.label.toLowerCase()}.`}
+          </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-          {notifications.map(n => (
+          {filteredNotifications.map(n => (
             <div
               key={n.id}
               className="card card-hover"

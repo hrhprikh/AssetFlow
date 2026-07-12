@@ -12,6 +12,7 @@ export default function AuditsPage() {
   const [auditors, setAuditors] = useState<Profile[]>([])
   const [selectedCycle, setSelectedCycle] = useState<AuditCycle | null>(null)
   const [auditItems, setAuditItems] = useState<AuditItem[]>([])
+  const [cycleAuditors, setCycleAuditors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({ name: '', scope_type: 'DEPARTMENT', scope_id: '', start_date: '', end_date: '', auditor_ids: [] as string[] })
@@ -81,10 +82,21 @@ export default function AuditsPage() {
     setSelectedCycle(cycle)
     const { data } = await supabase
       .from('audit_items')
-      .select('*, assets(name, asset_tag)')
+      .select('*, assets(name, asset_tag, location)')
       .eq('audit_cycle_id', cycle.id)
       .order('result')
     setAuditItems((data || []) as unknown as AuditItem[])
+
+    const { data: assignments } = await supabase
+      .from('audit_assignments')
+      .select('auditor_id')
+      .eq('audit_cycle_id', cycle.id)
+    
+    if (assignments) {
+      const ids = assignments.map(a => a.auditor_id)
+      const names = auditors.filter(a => ids.includes(a.id)).map(a => a.name)
+      setCycleAuditors(names)
+    }
   }
 
   const handleVerify = async (itemId: string, result: 'VERIFIED' | 'MISSING' | 'DAMAGED') => {
@@ -185,44 +197,105 @@ export default function AuditsPage() {
 
       {/* Audit Items Detail */}
       {selectedCycle && (
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">Items — {selectedCycle.name}</h3>
-            <button className="btn btn-ghost btn-sm" onClick={() => setSelectedCycle(null)}>Close</button>
+        <div className="mt-8 border border-border rounded-xl bg-card text-card-foreground p-6 shadow-sm">
+          {/* Header Block */}
+          <div className="flex flex-col gap-2 p-4 border border-border rounded-lg bg-muted/30 mb-6">
+            <div className="flex justify-between items-start">
+              <h3 className="font-semibold text-lg">{selectedCycle.name} - {departments.find(d => d.id === selectedCycle.scope_id)?.name || 'All Departments'} - {selectedCycle.start_date} to {selectedCycle.end_date}</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setSelectedCycle(null)}>Close View</button>
+            </div>
+            {cycleAuditors.length > 0 && (
+              <p className="text-sm text-muted-foreground">Auditors: {cycleAuditors.join(', ')}</p>
+            )}
           </div>
-          <div className="data-table-wrapper" style={{ border: 'none' }}>
-            <table className="data-table">
+
+          {/* Table */}
+          <div className="border border-border rounded-lg overflow-hidden mb-6">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr><th>Asset</th><th>Result</th><th>Notes</th><th>Verified By</th>
-                  {selectedCycle.status === 'OPEN' && <th>Actions</th>}
+                <tr className="bg-muted/50 border-b border-border">
+                  <th className="p-3 font-medium text-sm">Asset</th>
+                  <th className="p-3 font-medium text-sm">Expected location</th>
+                  <th className="p-3 font-medium text-sm text-center">Verification</th>
                 </tr>
               </thead>
               <tbody>
                 {auditItems.length === 0 ? (
-                  <tr><td colSpan={selectedCycle.status === 'OPEN' ? 5 : 4} className="data-table-empty">No items</td></tr>
+                  <tr><td colSpan={3} className="p-4 text-center text-muted-foreground">No items in this audit cycle.</td></tr>
                 ) : auditItems.map(item => {
-                  const asset = item.assets as unknown as { name: string; asset_tag: string } | null
+                  const asset = item.assets as unknown as { name: string; asset_tag: string; location: string | null } | null
                   return (
-                    <tr key={item.id}>
-                      <td><div className="font-medium">{asset?.name}</div><div className="text-sm text-muted">{asset?.asset_tag}</div></td>
-                      <td><span className={`badge badge-${item.result.toLowerCase()}`}>{item.result}</span></td>
-                      <td className="text-sm text-secondary">{item.notes || '—'}</td>
-                      <td className="text-sm text-muted">{item.verified_at ? new Date(item.verified_at).toLocaleDateString() : '—'}</td>
-                      {selectedCycle.status === 'OPEN' && (
-                        <td>
-                          <div className="flex gap-xs">
-                            <button className="btn btn-sm" style={{ background: 'var(--color-success-light)', color: 'var(--color-success)' }} onClick={() => handleVerify(item.id, 'VERIFIED')}>✓</button>
-                            <button className="btn btn-sm" style={{ background: 'var(--color-danger-light)', color: 'var(--color-danger)' }} onClick={() => handleVerify(item.id, 'MISSING')}>Missing</button>
-                            <button className="btn btn-sm" style={{ background: 'var(--color-warning-light)', color: 'var(--color-warning)' }} onClick={() => handleVerify(item.id, 'DAMAGED')}>Damaged</button>
-                          </div>
-                        </td>
-                      )}
+                    <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="p-3">
+                        <div className="font-medium text-sm">{asset?.asset_tag} {asset?.name}</div>
+                      </td>
+                      <td className="p-3 text-sm text-muted-foreground">
+                        {asset?.location || 'Unknown'}
+                      </td>
+                      <td className="p-3 text-center">
+                        <div className="flex gap-2 justify-center items-center">
+                          {selectedCycle.status === 'OPEN' ? (
+                            <>
+                              <button 
+                                className={`px-4 py-1 text-xs font-medium rounded-full border transition-colors ${item.result === 'VERIFIED' ? 'border-green-500 text-green-500 bg-green-500/10' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                                onClick={() => handleVerify(item.id, 'VERIFIED')}
+                              >
+                                Verified
+                              </button>
+                              <button 
+                                className={`px-4 py-1 text-xs font-medium rounded-full border transition-colors ${item.result === 'MISSING' ? 'border-red-500 text-red-500 bg-red-500/10' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                                onClick={() => handleVerify(item.id, 'MISSING')}
+                              >
+                                Missing
+                              </button>
+                              <button 
+                                className={`px-4 py-1 text-xs font-medium rounded-full border transition-colors ${item.result === 'DAMAGED' ? 'border-gray-400 text-gray-400 bg-gray-400/10' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                                onClick={() => handleVerify(item.id, 'DAMAGED')}
+                              >
+                                Damaged
+                              </button>
+                            </>
+                          ) : (
+                            <span className={`px-4 py-1 text-xs font-medium rounded-full border ${
+                              item.result === 'VERIFIED' ? 'border-green-500 text-green-500 bg-green-500/10' : 
+                              item.result === 'MISSING' ? 'border-red-500 text-red-500 bg-red-500/10' : 
+                              item.result === 'DAMAGED' ? 'border-gray-400 text-gray-400 bg-gray-400/10' : 
+                              'border-border text-muted-foreground'
+                            }`}>
+                              {item.result}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
+
+          {/* Banner */}
+          {(() => {
+            const discrepancies = auditItems.filter(i => i.result === 'MISSING' || i.result === 'DAMAGED').length;
+            if (discrepancies > 0) {
+              return (
+                <div className="bg-yellow-950/40 border border-yellow-700/50 text-yellow-500 text-sm font-medium p-3 rounded-lg mb-6">
+                  {discrepancies} assets flagged - discrepancy report generated automatically
+                </div>
+              )
+            }
+            return null;
+          })()}
+
+          {/* Actions */}
+          {selectedCycle.status === 'OPEN' && isAdmin && (
+            <button 
+              className="px-4 py-2 bg-background border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              onClick={() => handleClose(selectedCycle.id)}
+            >
+              Close audit cycle
+            </button>
+          )}
         </div>
       )}
     </div>
