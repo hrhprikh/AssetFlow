@@ -325,6 +325,7 @@ function CategoriesTab({ isAdmin }: { isAdmin: boolean }) {
 // Employee Directory Tab
 // ============================================================
 function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
+  const { profile } = useApp()
   const [employees, setEmployees] = useState<(Profile & { departments?: { name: string } | null })[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
@@ -334,11 +335,14 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
   const supabase = createClient()
 
   const fetchEmployees = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .select('*, departments(name)')
+      .select('*, departments!profiles_department_id_fkey(name)')
       .order('name')
-    setEmployees(data || [])
+    if (error) {
+      console.error('Error fetching employees:', error)
+    }
+    setEmployees((data as any) || [])
     setLoading(false)
   }, [supabase])
 
