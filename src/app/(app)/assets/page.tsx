@@ -14,8 +14,9 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, QrCode } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { QRScanner } from '@/components/QRScanner'
 
 const STATUS_OPTIONS = [
   'ALL', 'AVAILABLE', 'ALLOCATED', 'RESERVED', 'UNDER_MAINTENANCE', 'LOST', 'RETIRED', 'DISPOSED'
@@ -33,6 +34,7 @@ export default function AssetsPage() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [showRegister, setShowRegister] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
@@ -40,6 +42,7 @@ export default function AssetsPage() {
     acquisition_cost: '', condition: 'New', location: '', is_bookable: false,
     department_id: 'NONE',
   })
+  const [file, setFile] = useState<File | null>(null)
   const supabase = createClient()
   const isManager = profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER'
 
@@ -109,7 +112,7 @@ export default function AssetsPage() {
     setSaving(true)
     setError('')
 
-    const { data, error: rpcError } = await supabase.rpc('register_asset', {
+    const { data: newAssetId, error: rpcError } = await supabase.rpc('register_asset', {
       p_name: formData.name.trim(),
       p_category_id: formData.category_id,
       p_serial_number: formData.serial_number.trim() || null,
@@ -124,12 +127,28 @@ export default function AssetsPage() {
     if (rpcError) {
       setError(rpcError.message)
     } else {
+      if (file && newAssetId) {
+        try {
+          const fd = new FormData()
+          fd.append('file', file)
+          fd.append('asset_id', newAssetId as string)
+          
+          await fetch('/api/upload', {
+            method: 'POST',
+            body: fd
+          })
+        } catch (err) {
+          console.error('File upload failed:', err)
+        }
+      }
+
       setShowRegister(false)
       setFormData({
         name: '', category_id: '', serial_number: '', acquisition_date: '',
         acquisition_cost: '', condition: 'New', location: '', is_bookable: false,
         department_id: 'NONE',
       })
+      setFile(null)
       fetchAssets()
     }
     setSaving(false)
@@ -177,14 +196,19 @@ export default function AssetsPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 bg-muted/50 p-4 rounded-lg border">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search by name, tag, or serial number..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 bg-background"
-          />
+        <div className="relative flex-1 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search by name, tag, or serial number..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 bg-background"
+            />
+          </div>
+          <Button variant="outline" onClick={() => setShowScanner(true)}>
+            <QrCode className="h-4 w-4 mr-2" /> Scan
+          </Button>
         </div>
         <div className="flex gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -287,6 +311,11 @@ export default function AssetsPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Photo / Document</Label>
+                <Input type="file" onChange={e => setFile(e.target.files?.[0] || null)} accept="image/*,.pdf" />
+              </div>
             </div>
             
             <div className="flex items-center space-x-2 pt-2">
@@ -307,6 +336,28 @@ export default function AssetsPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scanner Modal */}
+      <Dialog open={showScanner} onOpenChange={setShowScanner}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Scan Asset QR</DialogTitle>
+          </DialogHeader>
+          <div className="p-4 flex flex-col items-center">
+            {showScanner && (
+              <QRScanner 
+                onScan={(text) => {
+                  setSearch(text)
+                  setShowScanner(false)
+                }} 
+              />
+            )}
+            <p className="text-sm text-muted-foreground mt-4 text-center">
+              Point your camera at the asset's QR code.
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
 

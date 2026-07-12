@@ -4,7 +4,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../../layout'
-import type { Asset, Allocation, Booking, MaintenanceRequest, AuditItem, ActivityLog } from '@/lib/types'
+import type { Asset, Allocation, Booking, MaintenanceRequest, AuditItem, ActivityLog, AssetAttachment } from '@/lib/types'
+import { QRCodeSVG } from 'qrcode.react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 type Tab = 'overview' | 'allocations' | 'bookings' | 'maintenance' | 'audits' | 'logs'
 
@@ -18,6 +21,8 @@ export default function AssetDetailPage() {
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([])
   const [auditItems, setAuditItems] = useState<AuditItem[]>([])
   const [logs, setLogs] = useState<ActivityLog[]>([])
+  const [attachment, setAttachment] = useState<AssetAttachment | null>(null)
+  const [showQR, setShowQR] = useState(false)
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -32,12 +37,13 @@ export default function AssetDetailPage() {
     if (data) setAsset(data as unknown as Asset)
 
     // Fetch all related data
-    const [allocRes, bookRes, maintRes, auditRes, logRes] = await Promise.all([
+    const [allocRes, bookRes, maintRes, auditRes, logRes, attRes] = await Promise.all([
       supabase.from('allocations').select('*, profiles!allocations_holder_id_fkey(name, email)').eq('asset_id', assetId).order('created_at', { ascending: false }),
       supabase.from('bookings').select('*, profiles!bookings_requester_id_fkey(name)').eq('asset_id', assetId).order('start_at', { ascending: false }),
       supabase.from('maintenance_requests').select('*, profiles!maintenance_requests_raised_by_fkey(name)').eq('asset_id', assetId).order('created_at', { ascending: false }),
       supabase.from('audit_items').select('*, audit_cycles(name, status)').eq('asset_id', assetId).order('verified_at', { ascending: false }),
       supabase.from('activity_logs').select('*, profiles!activity_logs_actor_id_fkey(name)').eq('entity_type', 'ASSET').eq('entity_id', assetId).order('created_at', { ascending: false }).limit(50),
+      supabase.from('asset_attachments').select('*').eq('asset_id', assetId).order('created_at', { ascending: false }).limit(1)
     ])
 
     setAllocations((allocRes.data || []) as unknown as Allocation[])
@@ -45,6 +51,7 @@ export default function AssetDetailPage() {
     setMaintenance((maintRes.data || []) as unknown as MaintenanceRequest[])
     setAuditItems((auditRes.data || []) as unknown as AuditItem[])
     setLogs((logRes.data || []) as unknown as ActivityLog[])
+    if (attRes.data && attRes.data.length > 0) setAttachment(attRes.data[0] as unknown as AssetAttachment)
     setLoading(false)
   }, [supabase, assetId])
 
@@ -80,7 +87,10 @@ export default function AssetDetailPage() {
             </div>
             <p className="text-sm text-muted" style={{ marginTop: '4px', fontFamily: 'var(--font-mono)' }}>{asset.asset_tag}</p>
           </div>
-          {asset.is_bookable && <span className="badge badge-active">Bookable</span>}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowQR(true)}>View QR Code</Button>
+            {asset.is_bookable && <span className="badge badge-active flex items-center px-3">Bookable</span>}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--space-lg)', marginTop: 'var(--space-lg)' }}>
@@ -109,23 +119,37 @@ export default function AssetDetailPage() {
 
       {/* Tab Content */}
       {tab === 'overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--space-md)' }}>
-          <div className="kpi-card" style={{ '--kpi-color': 'var(--color-info)' } as React.CSSProperties}>
-            <div className="kpi-value">{allocations.length}</div>
-            <div className="kpi-label">Total Allocations</div>
+        <div className="space-y-6">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 'var(--space-md)' }}>
+            <div className="kpi-card" style={{ '--kpi-color': 'var(--color-info)' } as React.CSSProperties}>
+              <div className="kpi-value">{allocations.length}</div>
+              <div className="kpi-label">Total Allocations</div>
+            </div>
+            <div className="kpi-card" style={{ '--kpi-color': 'var(--color-accent)' } as React.CSSProperties}>
+              <div className="kpi-value">{bookings.length}</div>
+              <div className="kpi-label">Total Bookings</div>
+            </div>
+            <div className="kpi-card" style={{ '--kpi-color': 'var(--color-warning)' } as React.CSSProperties}>
+              <div className="kpi-value">{maintenance.length}</div>
+              <div className="kpi-label">Maintenance Requests</div>
+            </div>
+            <div className="kpi-card" style={{ '--kpi-color': 'var(--color-secondary)' } as React.CSSProperties}>
+              <div className="kpi-value">{auditItems.length}</div>
+              <div className="kpi-label">Audit Records</div>
+            </div>
           </div>
-          <div className="kpi-card" style={{ '--kpi-color': 'var(--color-accent)' } as React.CSSProperties}>
-            <div className="kpi-value">{bookings.length}</div>
-            <div className="kpi-label">Total Bookings</div>
-          </div>
-          <div className="kpi-card" style={{ '--kpi-color': 'var(--color-warning)' } as React.CSSProperties}>
-            <div className="kpi-value">{maintenance.length}</div>
-            <div className="kpi-label">Maintenance Requests</div>
-          </div>
-          <div className="kpi-card" style={{ '--kpi-color': 'var(--color-secondary)' } as React.CSSProperties}>
-            <div className="kpi-value">{auditItems.length}</div>
-            <div className="kpi-label">Audit Records</div>
-          </div>
+          {attachment && attachment.file_type?.startsWith('image/') && (
+            <div className="card max-w-sm">
+              <h3 className="font-semibold mb-2">Asset Photo</h3>
+              <img src={attachment.file_url} alt="Asset" className="w-full h-auto rounded-lg border shadow-sm object-cover" />
+            </div>
+          )}
+          {attachment && !attachment.file_type?.startsWith('image/') && (
+            <div className="card max-w-sm flex items-center justify-between">
+              <h3 className="font-semibold">Asset Document</h3>
+              <a href={attachment.file_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">View File</a>
+            </div>
+          )}
         </div>
       )}
 
@@ -242,6 +266,21 @@ export default function AssetDetailPage() {
           </table>
         </div>
       )}
+
+      <Dialog open={showQR} onOpenChange={setShowQR}>
+        <DialogContent className="sm:max-w-[400px] text-center">
+          <DialogHeader>
+            <DialogTitle>Asset QR Code</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-6 space-y-4">
+            <div className="bg-white p-4 rounded-xl shadow-sm border">
+              <QRCodeSVG value={asset.asset_tag} size={200} />
+            </div>
+            <p className="text-lg font-mono font-semibold">{asset.asset_tag}</p>
+            <p className="text-sm text-muted-foreground">Scan this code to quickly pull up the asset details.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
