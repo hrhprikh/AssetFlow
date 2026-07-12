@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
 import type { Department, AssetCategory, Profile, UserRole } from '@/lib/types'
@@ -71,10 +71,20 @@ function DepartmentsTab({ isAdmin }: { isAdmin: boolean }) {
   const [error, setError] = useState('')
   const supabase = createClient()
 
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   const fetchDepartments = useCallback(async () => {
     const { data } = await supabase.from('departments').select('*').order('name')
-    setDepartments((data as Department[]) || [])
-    setLoading(false)
+    if (isMounted.current) {
+      setDepartments((data as Department[]) || [])
+      setLoading(false)
+    }
   }, [supabase])
 
   useEffect(() => { fetchDepartments() }, [fetchDepartments])
@@ -231,10 +241,20 @@ function CategoriesTab({ isAdmin }: { isAdmin: boolean }) {
   const [error, setError] = useState('')
   const supabase = createClient()
 
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   const fetchCategories = useCallback(async () => {
     const { data } = await supabase.from('asset_categories').select('*').order('name')
-    setCategories((data as AssetCategory[]) || [])
-    setLoading(false)
+    if (isMounted.current) {
+      setCategories((data as AssetCategory[]) || [])
+      setLoading(false)
+    }
   }, [supabase])
 
   useEffect(() => { fetchCategories() }, [fetchCategories])
@@ -370,21 +390,33 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
 
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   const fetchEmployees = useCallback(async () => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*, departments!profiles_department_id_fkey(name)')
       .order('name')
     if (error) console.error('Error fetching employees:', error)
-    setEmployees((data as any) || [])
-    setLoading(false)
+    if (isMounted.current) {
+      setEmployees((data as any) || [])
+      setLoading(false)
+    }
   }, [supabase])
 
   useEffect(() => {
     fetchEmployees()
     const fetchDepts = async () => {
       const { data } = await supabase.from('departments').select('*').eq('status', 'ACTIVE').order('name')
-      setDepartments((data as Department[]) || [])
+      if (isMounted.current) {
+        setDepartments((data as Department[]) || [])
+      }
     }
     fetchDepts()
   }, [fetchEmployees, supabase])

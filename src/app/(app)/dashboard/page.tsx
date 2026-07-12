@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
 import type { DashboardKPIs, Allocation, Asset, Profile } from '@/lib/types'
@@ -45,12 +45,20 @@ export default function DashboardPage() {
 
   const supabase = createClient()
 
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   useEffect(() => {
     if (!profile) return
 
     const fetchDashboard = async () => {
       const { data: kpiData } = await supabase.rpc('get_dashboard_kpis')
-      if (kpiData) setKpis(kpiData as unknown as DashboardKPIs)
+      if (kpiData && isMounted.current) setKpis(kpiData as unknown as DashboardKPIs)
 
       if (profile.role === 'ADMIN' || profile.role === 'ASSET_MANAGER') {
         const { data: overdue } = await supabase
@@ -62,7 +70,7 @@ export default function DashboardPage() {
           .is('returned_at', null)
           .order('expected_return_at', { ascending: true })
           .limit(10)
-        if (overdue) setOverdueItems(overdue as unknown as (Allocation & { assets: Asset })[])
+        if (overdue && isMounted.current) setOverdueItems(overdue as unknown as (Allocation & { assets: Asset })[])
       }
 
       if (profile.role === 'EMPLOYEE') {
@@ -70,11 +78,15 @@ export default function DashboardPage() {
           supabase.from('allocations').select('*, assets(*)').eq('holder_id', profile.id).eq('status', 'ACTIVE'),
           supabase.from('profiles').select('id, name, email').eq('status', 'ACTIVE').order('name')
         ])
-        if (allocsRes.data) setMyAssets(allocsRes.data as unknown as (Allocation & { assets: Asset })[])
-        if (empRes.data) setEmployees(empRes.data as Profile[])
+        if (isMounted.current) {
+          if (allocsRes.data) setMyAssets(allocsRes.data as unknown as (Allocation & { assets: Asset })[])
+          if (empRes.data) setEmployees(empRes.data as Profile[])
+        }
       }
 
-      setLoading(false)
+      if (isMounted.current) {
+        setLoading(false)
+      }
     }
 
     fetchDashboard()
@@ -131,7 +143,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
           <Button asChild><Link href="/bookings?action=new"><CalendarRange className="mr-2 h-4 w-4" /> Book Shared Resource</Link></Button>
-          <Button asChild variant="secondary"><Link href="/assets"><Package className="mr-2 h-4 w-4" /> View Department Assets</Link></Button>
+          <Button asChild variant="secondary"><Link href="/assets"><Package className="mr-2 h-4 w-4" /> View Assets</Link></Button>
           <Button asChild variant="secondary"><Link href="/transfers"><RefreshCw className="mr-2 h-4 w-4" /> Approve Transfers</Link></Button>
         </CardContent>
       </Card>

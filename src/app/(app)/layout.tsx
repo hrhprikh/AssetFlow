@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, createContext, useContext, useCallback } from 'react'
+import { useEffect, useState, createContext, useContext, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import type { Profile } from '@/lib/types'
@@ -110,7 +110,7 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
         {
           label: 'Department',
           items: [
-            { label: 'Department Assets', href: '/assets', icon: Package },
+            { label: 'Assets', href: '/assets', icon: Package },
             { label: 'Transfers', href: '/transfers', icon: RefreshCw },
             { label: 'Bookings', href: '/bookings', icon: CalendarRange },
             { label: 'Audits', href: '/audits', icon: ClipboardCheck },
@@ -153,6 +153,14 @@ export default function AppLayout({
   const pathname = usePathname()
   const supabase = createClient()
 
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   const fetchProfile = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -166,10 +174,12 @@ export default function AppLayout({
       .eq('id', user.id)
       .single()
 
-    if (data) {
-      setProfile(data as Profile)
+    if (isMounted.current) {
+      if (data) {
+        setProfile(data as Profile)
+      }
+      setLoading(false)
     }
-    setLoading(false)
   }, [supabase, router])
 
   const fetchUnread = useCallback(async () => {
@@ -178,7 +188,9 @@ export default function AppLayout({
       .select('*', { count: 'exact', head: true })
       .is('read_at', null)
 
-    setUnreadCount(count || 0)
+    if (isMounted.current) {
+      setUnreadCount(count || 0)
+    }
   }, [supabase])
 
   useEffect(() => {

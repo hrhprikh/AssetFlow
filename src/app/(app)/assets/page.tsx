@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
 import { useSearchParams } from 'next/navigation'
@@ -43,6 +43,14 @@ export default function AssetsPage() {
   const supabase = createClient()
   const isManager = profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER'
 
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
+
   const fetchAssets = useCallback(async () => {
     if (!profile) return
 
@@ -64,15 +72,15 @@ export default function AssetsPage() {
       }
     } else if (scope === 'bookable') {
       query = query.eq('is_bookable', true)
-    } else if (profile.role === 'DEPARTMENT_HEAD') {
-      query = query.eq('current_department_id', profile.department_id)
     } else if (profile.role === 'EMPLOYEE') {
       query = query.eq('is_bookable', true)
     }
 
     const { data } = await query
-    setAssets((data || []) as unknown as Asset[])
-    setLoading(false)
+    if (isMounted.current) {
+      setAssets((data || []) as unknown as Asset[])
+      setLoading(false)
+    }
   }, [supabase, statusFilter, categoryFilter, scope, profile])
 
   useEffect(() => {
@@ -82,8 +90,10 @@ export default function AssetsPage() {
         supabase.from('asset_categories').select('*').eq('status', 'ACTIVE').order('name'),
         supabase.from('departments').select('*').eq('status', 'ACTIVE').order('name'),
       ])
-      setCategories((catRes.data as AssetCategory[]) || [])
-      setDepartments((deptRes.data as Department[]) || [])
+      if (isMounted.current) {
+        setCategories((catRes.data as AssetCategory[]) || [])
+        setDepartments((deptRes.data as Department[]) || [])
+      }
     }
     fetchMeta()
   }, [fetchAssets, supabase])
