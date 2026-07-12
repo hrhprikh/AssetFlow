@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
-import type { TransferRequest } from '@/lib/types'
+import type { TransferRequest, Profile, Department } from '@/lib/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -13,16 +13,26 @@ import { cn } from '@/lib/utils'
 export default function TransfersPage() {
   const { profile } = useApp()
   const [transfers, setTransfers] = useState<TransferRequest[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const isManager = profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER' || profile?.role === 'DEPARTMENT_HEAD'
+
+  const isMounted = useRef(true)
+  useEffect(() => {
+    isMounted.current = true
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
 
   const fetchTransfers = useCallback(async () => {
     if (!profile) return
 
     let query = supabase
       .from('transfer_requests')
-      .select('*, assets!inner(name, asset_tag, current_department_id), requester:profiles!transfer_requests_requested_by_fkey(name), target:profiles!transfer_requests_target_holder_id_fkey(name)')
+      .select('*, assets!inner(name, asset_tag, current_department_id), requester:profiles!transfer_requests_requested_by_fkey(name)')
       .order('created_at', { ascending: false })
 
     if (profile.role === 'DEPARTMENT_HEAD') {
@@ -32,11 +42,26 @@ export default function TransfersPage() {
     }
 
     const { data } = await query
-    setTransfers((data || []) as unknown as TransferRequest[])
-    setLoading(false)
+    if (isMounted.current) {
+      setTransfers((data || []) as unknown as TransferRequest[])
+      setLoading(false)
+    }
   }, [supabase, profile])
 
-  useEffect(() => { fetchTransfers() }, [fetchTransfers])
+  useEffect(() => {
+    fetchTransfers()
+    const fetchMeta = async () => {
+      const [profilesRes, deptsRes] = await Promise.all([
+        supabase.from('profiles').select('id, name'),
+        supabase.from('departments').select('id, name')
+      ])
+      if (isMounted.current) {
+        setProfiles((profilesRes.data || []) as Profile[])
+        setDepartments((deptsRes.data || []) as Department[])
+      }
+    }
+    fetchMeta()
+  }, [fetchTransfers, supabase])
 
   const handleApprove = async (id: string) => {
     const { error } = await supabase.rpc('approve_transfer', { p_transfer_id: id })
@@ -66,6 +91,14 @@ export default function TransfersPage() {
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     )
+  }
+
+  const getTargetName = (t: TransferRequest) => {
+    if (t.target_holder_type === 'EMPLOYEE') {
+      return profiles.find(p => p.id === t.target_holder_id)?.name || 'Unknown Employee'
+    } else {
+      return departments.find(d => d.id === t.target_holder_id)?.name || 'Unknown Department'
+    }
   }
 
   return (
@@ -99,7 +132,6 @@ export default function TransfersPage() {
               ) : transfers.map(t => {
                 const asset = t.assets as unknown as { name: string; asset_tag: string } | null
                 const requester = t.requester as unknown as { name: string } | null
-                const target = t.target as unknown as { name: string } | null
                 return (
                   <TableRow key={t.id}>
                     <TableCell>
@@ -107,7 +139,7 @@ export default function TransfersPage() {
                       <div className="text-xs text-muted-foreground">{asset?.asset_tag}</div>
                     </TableCell>
                     <TableCell className="text-sm">{requester?.name}</TableCell>
-                    <TableCell className="text-sm">{target?.name}</TableCell>
+                    <TableCell className="text-sm">{getTargetName(t)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={t.reason || ''}>{t.reason || '—'}</TableCell>
                     <TableCell>
                       <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", getStatusBadge(t.status))}>
