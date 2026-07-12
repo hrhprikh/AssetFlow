@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
-import { formatDistanceToNow, format, subMonths, isBefore } from 'date-fns'
+import { formatDistanceToNow, format, subMonths, isBefore, parseISO, getDay, getHours } from 'date-fns'
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   LineChart, Line, CartesianGrid 
@@ -42,6 +42,12 @@ interface MaintenanceAsset {
   reason: string
 }
 
+interface HeatmapCell {
+  day: number
+  hour: number
+  count: number
+}
+
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [utilization, setUtilization] = useState<DeptUtilization[]>([])
@@ -49,6 +55,8 @@ export default function ReportsPage() {
   const [mostUsed, setMostUsed] = useState<AssetUsage[]>([])
   const [idleAssets, setIdleAssets] = useState<IdleAsset[]>([])
   const [maintAssets, setMaintAssets] = useState<MaintenanceAsset[]>([])
+  const [heatmap, setHeatmap] = useState<HeatmapCell[]>([])
+  const [maxHeat, setMaxHeat] = useState(1)
   
   const supabase = createClient()
 
@@ -132,6 +140,30 @@ export default function ReportsPage() {
         }
         return { id: a.id, name: a.name, tag: a.asset_tag, reason }
       }) || [])
+
+      // 6. Booking Heatmap
+      const { data: bookings } = await supabase.from('bookings').select('start_at, end_at').eq('status', 'COMPLETED')
+      const hm: Record<string, number> = {}
+      let maxC = 0
+      bookings?.forEach(b => {
+        const start = parseISO(b.start_at)
+        const d = getDay(start) // 0-6 (Sun-Sat)
+        const h = getHours(start)
+        // map hour to one of our blocks: 8, 10, 12, 14, 16, 18
+        const block = h < 10 ? 8 : h < 12 ? 10 : h < 14 ? 12 : h < 16 ? 14 : h < 18 ? 16 : 18
+        const key = `${d}-${block}`
+        hm[key] = (hm[key] || 0) + 1
+        if (hm[key] > maxC) maxC = hm[key]
+      })
+
+      const heatCells: HeatmapCell[] = []
+      for(let d = 0; d < 7; d++) {
+        for(let h of [8, 10, 12, 14, 16, 18]) {
+          heatCells.push({ day: d, hour: h, count: hm[`${d}-${h}`] || 0 })
+        }
+      }
+      setHeatmap(heatCells)
+      setMaxHeat(maxC || 1)
 
       setLoading(false)
     }
@@ -227,6 +259,48 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Booking Heatmap */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium text-muted-foreground">Resource Booking Peak Windows</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <div className="min-w-[600px]">
+              <div className="grid grid-cols-[100px_repeat(6,_1fr)] gap-2 mb-2 text-center text-sm font-medium text-muted-foreground">
+                <div></div>
+                <div>8:00 AM</div>
+                <div>10:00 AM</div>
+                <div>12:00 PM</div>
+                <div>2:00 PM</div>
+                <div>4:00 PM</div>
+                <div>6:00 PM+</div>
+              </div>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName, d) => (
+                <div key={d} className="grid grid-cols-[100px_repeat(6,_1fr)] gap-2 mb-2 items-center">
+                  <div className="text-sm font-medium text-muted-foreground">{dayName}</div>
+                  {[8, 10, 12, 14, 16, 18].map(h => {
+                    const cell = heatmap.find(c => c.day === d && c.hour === h)
+                    const count = cell ? cell.count : 0
+                    const opacity = count === 0 ? 0.05 : Math.max(0.1, count / maxHeat)
+                    return (
+                      <div 
+                        key={h} 
+                        className="h-10 rounded-md transition-all duration-200 flex items-center justify-center text-xs font-semibold"
+                        style={{ backgroundColor: `hsla(var(--primary), ${opacity})`, color: count > (maxHeat/2) ? '#fff' : 'inherit' }}
+                        title={`${count} bookings`}
+                      >
+                        {count > 0 ? count : ''}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Most Used Assets */}
