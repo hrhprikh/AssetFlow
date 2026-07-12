@@ -65,7 +65,9 @@ export default function AssetsPage() {
     } else if (scope === 'bookable') {
       query = query.eq('is_bookable', true)
     } else if (profile.role === 'DEPARTMENT_HEAD') {
-      query = query.eq('current_department_id', profile.department_id)
+      if (profile.department_id) {
+        query = query.eq('current_department_id', profile.department_id)
+      }
     } else if (profile.role === 'EMPLOYEE') {
       query = query.eq('is_bookable', true)
     }

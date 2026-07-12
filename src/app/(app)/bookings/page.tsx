@@ -59,8 +59,10 @@ export default function BookingsPage() {
   const canApprove = (b: any) => {
     if (profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER') return true
     if (profile?.role === 'DEPARTMENT_HEAD') {
-      const assetDept = b.assets?.current_department_id
-      return profile.department_id === assetDept
+      if (profile.department_id) {
+        const assetDept = b.assets?.current_department_id
+        return profile.department_id === assetDept
+      }
     }
     return false
   }
