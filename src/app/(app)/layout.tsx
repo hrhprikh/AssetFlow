@@ -211,9 +211,12 @@ export default function AppLayout({
       const allowedSections = getNavSections(profile.role)
       const allowedHrefs = allowedSections.flatMap(s => s.items.map(i => i.href.split('?')[0]))
 
+      // Always allow these paths regardless of role
+      const universalPaths = ['/notifications', '/profile']
+
       const isAllowed = allowedHrefs.some(href =>
         pathname === href || pathname.startsWith(href + '/')
-      )
+      ) || universalPaths.some(p => pathname === p || pathname.startsWith(p + '/'))
 
       if (!isAllowed) {
         console.warn(`Unauthorized access attempt to ${pathname} by role ${profile.role}`)
