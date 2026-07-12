@@ -133,7 +133,6 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
             { label: 'Book Resources', href: '/assets?scope=bookable', icon: CalendarRange },
             { label: 'My Bookings', href: '/bookings', icon: CalendarRange },
             { label: 'Maintenance Requests', href: '/maintenance', icon: Wrench },
-            { label: 'Profile', href: '/profile', icon: User },
           ],
         },
       ];
@@ -264,7 +263,7 @@ export default function AppLayout({
 
         {/* Sidebar */}
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r bg-background transition-transform md:sticky md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r bg-background transition-transform md:sticky md:top-0 md:h-screen md:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="flex h-16 shrink-0 items-center border-b px-6">
