@@ -441,38 +441,21 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Department</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center text-muted-foreground">No employees found</TableCell>
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No employees found</TableCell>
                 </TableRow>
               ) : filtered.map(emp => (
                 <TableRow key={emp.id}>
                   <TableCell className="font-medium">{emp.name}</TableCell>
                   <TableCell className="text-muted-foreground">{emp.email}</TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <Select value={emp.department_id || 'NONE'} onValueChange={v => handleDeptAssign(emp.id, v)}>
-                        <SelectTrigger className="w-[180px] h-8 text-xs">
-                          <SelectValue placeholder="No Department" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="NONE">No Department</SelectItem>
-                          {departments.map(d => (
-                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className="text-sm">{emp.departments?.name || '—'}</span>
-                    )}
-                  </TableCell>
+
                   <TableCell>
                     <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", 
                       emp.role === 'ADMIN' ? 'bg-red-100 text-red-800 border-red-200' :
@@ -488,24 +471,22 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
                       {emp.status}
                     </span>
                   </TableCell>
-                  {isAdmin && (
-                    <TableCell className="text-right">
-                      {emp.id === profile?.id ? (
-                        <span className="text-xs text-muted-foreground mr-4">Current User</span>
-                      ) : (
-                        <Select value={emp.role} onValueChange={v => setRoleModal({ user: emp, newRole: v as UserRole })}>
-                          <SelectTrigger className="w-[160px] h-8 text-xs ml-auto">
-                            <SelectValue placeholder="Change Role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roles.filter(r => r !== emp.role).map(r => (
-                              <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </TableCell>
-                  )}
+                  <TableCell className="text-right">
+                    {emp.id === profile?.id ? (
+                      <span className="text-xs text-muted-foreground mr-4">Current User</span>
+                    ) : (
+                      <Select value={emp.role} onValueChange={v => setRoleModal({ user: emp, newRole: v as UserRole })}>
+                        <SelectTrigger className="w-[160px] h-8 text-xs ml-auto">
+                          <SelectValue placeholder="Change Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles.map(r => (
+                            <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
