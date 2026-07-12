@@ -19,7 +19,7 @@ export default function BookingsPage() {
   const fetchBookings = useCallback(async () => {
     const { data } = await supabase
       .from('bookings')
-      .select('*, assets(name, asset_tag), profiles!bookings_requester_id_fkey(name)')
+      .select('*, assets(name, asset_tag, current_department_id), profiles!bookings_requester_id_fkey(name)')
       .order('start_at', { ascending: false })
     setBookings((data || []) as unknown as Booking[])
     setLoading(false)
@@ -63,7 +63,34 @@ export default function BookingsPage() {
     else fetchBookings()
   }
 
+  const handleApprove = async (bookingId: string, status: string) => {
+    const { error } = await supabase.rpc('approve_booking', { 
+      p_booking_id: bookingId, 
+      p_status: status 
+    })
+    if (error) alert(error.message)
+    else fetchBookings()
+  }
+
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newStart = e.target.value
+    setFormData(prev => {
+      // If end_at is earlier than new start_at, auto-update it
+      const newEnd = (prev.end_at && prev.end_at < newStart) ? newStart : prev.end_at
+      return { ...prev, start_at: newStart, end_at: newEnd }
+    })
+  }
+
   if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
+
+  const canApprove = (b: any) => {
+    if (profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER') return true
+    if (profile?.role === 'DEPARTMENT_HEAD') {
+      const assetDept = b.assets?.current_department_id
+      return profile.department_id === assetDept
+    }
+    return false
+  }
 
   return (
     <div>
@@ -86,11 +113,11 @@ export default function BookingsPage() {
               </div>
               <div className="form-group">
                 <label className="form-label">Start *</label>
-                <input className="form-input" type="datetime-local" value={formData.start_at} onChange={e => setFormData({...formData, start_at: e.target.value})} required />
+                <input className="form-input" type="datetime-local" min={new Date().toISOString().slice(0,16)} value={formData.start_at} onChange={handleStartDateChange} required />
               </div>
               <div className="form-group">
                 <label className="form-label">End *</label>
-                <input className="form-input" type="datetime-local" value={formData.end_at} onChange={e => setFormData({...formData, end_at: e.target.value})} required />
+                <input className="form-input" type="datetime-local" min={formData.start_at || new Date().toISOString().slice(0,16)} value={formData.end_at} onChange={e => setFormData({...formData, end_at: e.target.value})} required />
               </div>
               <div className="form-group">
                 <label className="form-label">Purpose</label>
@@ -136,6 +163,15 @@ export default function BookingsPage() {
                   <td className="text-sm text-secondary truncate" style={{ maxWidth: '200px' }}>{b.purpose || '—'}</td>
                   <td><span className={`badge badge-${b.status.toLowerCase()}`}>{b.status}</span></td>
                   <td>
+                    {b.status === 'PENDING' && canApprove(b) && (
+                      <div className="flex gap-sm">
+                        <button className="btn btn-primary btn-sm" onClick={() => handleApprove(b.id, 'UPCOMING')}>Approve</button>
+                        <button className="btn btn-secondary btn-sm" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }} onClick={() => handleApprove(b.id, 'REJECTED')}>Reject</button>
+                      </div>
+                    )}
+                    {b.status === 'PENDING' && !canApprove(b) && (
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleCancel(b.id)}>Cancel</button>
+                    )}
                     {(b.status === 'UPCOMING' || b.status === 'ONGOING') && (
                       <button className="btn btn-ghost btn-sm" onClick={() => handleCancel(b.id)}>Cancel</button>
                     )}

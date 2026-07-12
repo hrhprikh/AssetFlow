@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
-import type { DashboardKPIs, Allocation, Asset } from '@/lib/types'
+import type { DashboardKPIs, Allocation, Asset, Profile } from '@/lib/types'
 import Link from 'next/link'
 
 export default function DashboardPage() {
@@ -12,6 +12,18 @@ export default function DashboardPage() {
   const [overdueItems, setOverdueItems] = useState<(Allocation & { assets: Asset })[]>([])
   const [myAssets, setMyAssets] = useState<(Allocation & { assets: Asset })[]>([])
   const [loading, setLoading] = useState(true)
+  const [employees, setEmployees] = useState<Profile[]>([])
+  
+  const [showTransferFor, setShowTransferFor] = useState<Asset | null>(null)
+  const [transferTargetId, setTransferTargetId] = useState('')
+  const [transferReason, setTransferReason] = useState('')
+  
+  const [showReturnFor, setShowReturnFor] = useState<Asset | null>(null)
+  const [returnCondition, setReturnCondition] = useState('Good')
+  const [returnNotes, setReturnNotes] = useState('')
+  
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -36,12 +48,12 @@ export default function DashboardPage() {
       }
 
       if (profile.role === 'EMPLOYEE') {
-        const { data: myAllocations } = await supabase
-          .from('allocations')
-          .select('*, assets(*)')
-          .eq('holder_id', profile.id)
-          .eq('status', 'ACTIVE')
-        if (myAllocations) setMyAssets(myAllocations as unknown as (Allocation & { assets: Asset })[])
+        const [allocsRes, empRes] = await Promise.all([
+          supabase.from('allocations').select('*, assets(*)').eq('holder_id', profile.id).eq('status', 'ACTIVE'),
+          supabase.from('profiles').select('id, name, email').eq('status', 'ACTIVE').order('name')
+        ])
+        if (allocsRes.data) setMyAssets(allocsRes.data as unknown as (Allocation & { assets: Asset })[])
+        if (empRes.data) setEmployees(empRes.data as Profile[])
       }
 
       setLoading(false)
@@ -111,7 +123,7 @@ export default function DashboardPage() {
         <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
           <Link href="/bookings?action=new" className="btn btn-primary">📅 Book Resource</Link>
           <Link href="/maintenance" className="btn btn-secondary">🔧 Raise Maintenance</Link>
-          <Link href="/assets" className="btn btn-secondary">🔄 Request Transfer / Return</Link>
+          <button onClick={() => document.getElementById('my-assets')?.scrollIntoView({ behavior: 'smooth' })} className="btn btn-secondary">🔄 Request Transfer / Return</button>
         </div>
       </div>
       {renderPersonalKPIs()}
@@ -198,7 +210,7 @@ export default function DashboardPage() {
   }
 
   const renderMyAssets = () => (
-    <div className="card">
+    <div className="card" id="my-assets">
       <div className="card-header">
         <h3 className="card-title">My Current Assets</h3>
         <span className="badge badge-info">{myAssets.length}</span>
@@ -206,11 +218,11 @@ export default function DashboardPage() {
       <div className="data-table-wrapper" style={{ border: 'none' }}>
         <table className="data-table">
           <thead>
-            <tr><th>Asset Tag</th><th>Name</th><th>Allocated On</th></tr>
+            <tr><th>Asset Tag</th><th>Name</th><th>Allocated On</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {myAssets.length === 0 ? (
-              <tr><td colSpan={3} className="text-center text-muted" style={{ padding: 'var(--space-xl)' }}>You have no active asset allocations.</td></tr>
+              <tr><td colSpan={4} className="text-center text-muted" style={{ padding: 'var(--space-xl)' }}>You have no active asset allocations.</td></tr>
             ) : myAssets.map((item) => {
               const asset = item.assets as unknown as Asset
               return (
@@ -222,6 +234,12 @@ export default function DashboardPage() {
                   </td>
                   <td className="font-medium">{asset?.name}</td>
                   <td className="text-sm">{new Date(item.allocated_at).toLocaleDateString()}</td>
+                  <td>
+                    <div className="flex gap-sm">
+                      <button className="btn btn-secondary btn-sm" onClick={() => setShowTransferFor(asset)}>Transfer</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setShowReturnFor(asset)}>Return</button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -230,6 +248,48 @@ export default function DashboardPage() {
       </div>
     </div>
   )
+
+  const handleRequestTransfer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!showTransferFor) return
+    setSaving(true)
+    setError('')
+    const { error: rpcError } = await supabase.rpc('request_transfer', {
+      p_asset_id: showTransferFor.id,
+      p_target_holder_type: 'EMPLOYEE',
+      p_target_holder_id: transferTargetId,
+      p_reason: transferReason || null
+    })
+    if (rpcError) setError(rpcError.message)
+    else {
+      setShowTransferFor(null)
+      setTransferTargetId('')
+      setTransferReason('')
+      alert('Transfer request submitted!')
+    }
+    setSaving(false)
+  }
+
+  const handleReturn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!showReturnFor) return
+    setSaving(true)
+    setError('')
+    const { error: rpcError } = await supabase.rpc('return_asset', {
+      p_asset_id: showReturnFor.id,
+      p_return_condition: returnCondition,
+      p_return_notes: returnNotes || null
+    })
+    if (rpcError) setError(rpcError.message)
+    else {
+      setShowReturnFor(null)
+      setReturnCondition('Good')
+      setReturnNotes('')
+      setMyAssets(prev => prev.filter(a => a.asset_id !== showReturnFor.id))
+      alert('Asset returned successfully!')
+    }
+    setSaving(false)
+  }
 
   return (
     <div>
@@ -246,6 +306,69 @@ export default function DashboardPage() {
       {profile?.role === 'ASSET_MANAGER' && renderAssetManagerDashboard()}
       {profile?.role === 'DEPARTMENT_HEAD' && renderDeptHeadDashboard()}
       {profile?.role === 'EMPLOYEE' && renderEmployeeDashboard()}
+
+      {/* Transfer Modal */}
+      {showTransferFor && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3 className="modal-title">Request Transfer: {showTransferFor.name}</h3>
+              <button className="modal-close" onClick={() => setShowTransferFor(null)}>✕</button>
+            </div>
+            {error && <div className="alert-banner alert-error" style={{ margin: 'var(--space-md) 0' }}>⚠ {error}</div>}
+            <form onSubmit={handleRequestTransfer}>
+              <div className="form-group">
+                <label className="form-label">Transfer To *</label>
+                <select className="form-select" value={transferTargetId} onChange={e => setTransferTargetId(e.target.value)} required>
+                  <option value="">Select Employee...</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.email})</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Reason</label>
+                <textarea className="form-input" value={transferReason} onChange={e => setTransferReason(e.target.value)} placeholder="Why is this transfer needed?" required />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowTransferFor(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Submitting...' : 'Submit Request'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Return Modal */}
+      {showReturnFor && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h3 className="modal-title">Return Asset: {showReturnFor.name}</h3>
+              <button className="modal-close" onClick={() => setShowReturnFor(null)}>✕</button>
+            </div>
+            {error && <div className="alert-banner alert-error" style={{ margin: 'var(--space-md) 0' }}>⚠ {error}</div>}
+            <form onSubmit={handleReturn}>
+              <div className="form-group">
+                <label className="form-label">Return Condition</label>
+                <select className="form-select" value={returnCondition} onChange={e => setReturnCondition(e.target.value)}>
+                  <option value="New">New</option>
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Poor">Poor</option>
+                  <option value="Damaged">Damaged</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Return Notes</label>
+                <textarea className="form-input" value={returnNotes} onChange={e => setReturnNotes(e.target.value)} placeholder="Any issues to report?" />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowReturnFor(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Returning...' : 'Confirm Return'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
