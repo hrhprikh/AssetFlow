@@ -26,7 +26,9 @@ export default function TransfersPage() {
       .order('created_at', { ascending: false })
 
     if (profile.role === 'DEPARTMENT_HEAD') {
-      query = query.eq('assets.current_department_id', profile.department_id)
+      if (profile.department_id) {
+        query = query.eq('assets.current_department_id', profile.department_id)
+      }
     }
 
     const { data } = await query

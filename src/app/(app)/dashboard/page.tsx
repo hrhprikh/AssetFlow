@@ -73,15 +73,14 @@ export default function DashboardPage() {
         if (overdue && isMounted.current) setOverdueItems(overdue as unknown as (Allocation & { assets: Asset })[])
       }
 
-      if (profile.role === 'EMPLOYEE') {
-        const [allocsRes, empRes] = await Promise.all([
-          supabase.from('allocations').select('*, assets(*)').eq('holder_id', profile.id).eq('status', 'ACTIVE'),
-          supabase.from('profiles').select('id, name, email').eq('status', 'ACTIVE').order('name')
-        ])
-        if (isMounted.current) {
-          if (allocsRes.data) setMyAssets(allocsRes.data as unknown as (Allocation & { assets: Asset })[])
-          if (empRes.data) setEmployees(empRes.data as Profile[])
-        }
+      // Everyone is an employee, so everyone needs to see their own assets and employees list for transfers
+      const [allocsRes, empRes] = await Promise.all([
+        supabase.from('allocations').select('*, assets(*)').eq('holder_id', profile.id).eq('status', 'ACTIVE'),
+        supabase.from('profiles').select('id, name, email').eq('status', 'ACTIVE').order('name')
+      ])
+      if (isMounted.current) {
+        if (allocsRes.data) setMyAssets(allocsRes.data as unknown as (Allocation & { assets: Asset })[])
+        if (empRes.data) setEmployees(empRes.data as Profile[])
       }
 
       if (isMounted.current) {
@@ -148,6 +147,10 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
       {renderDeptKPIs()}
+      <div className="pt-4">
+        <h3 className="text-lg font-semibold tracking-tight mb-4">Personal Operations</h3>
+        {renderMyAssets()}
+      </div>
     </div>
   )
 
