@@ -2,12 +2,12 @@
 
 import { useEffect, useState, createContext, useContext, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
-import { 
-  LayoutDashboard, Building2, Users, Package, Link as LinkIcon, 
-  CalendarRange, Wrench, ClipboardCheck, TrendingUp, FileText, 
+import {
+  LayoutDashboard, Building2, Users, Package, Link as LinkIcon,
+  CalendarRange, Wrench, ClipboardCheck, TrendingUp, FileText,
   Bell, RefreshCw, User, LogOut, Menu, X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -23,7 +23,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType>({
   profile: null,
   loading: true,
-  refreshProfile: async () => {},
+  refreshProfile: async () => { },
 })
 
 export function useApp() {
@@ -52,7 +52,8 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
           label: 'Management',
           items: [
             { label: 'Organization Setup', href: '/organization', icon: Building2 },
-            { label: 'Employee Directory', href: '/organization?tab=employees', icon: Users },
+            //   { label: 'Employee Directory', href: '/organization?tab=employees', icon: Users },
+            // 
           ]
         },
         {
@@ -151,7 +152,6 @@ export default function AppLayout({
   const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const fetchProfile = useCallback(async () => {
@@ -210,8 +210,8 @@ export default function AppLayout({
     if (!loading && profile) {
       const allowedSections = getNavSections(profile.role)
       const allowedHrefs = allowedSections.flatMap(s => s.items.map(i => i.href.split('?')[0]))
-      
-      const isAllowed = allowedHrefs.some(href => 
+
+      const isAllowed = allowedHrefs.some(href =>
         pathname === href || pathname.startsWith(href + '/')
       )
 
@@ -250,7 +250,7 @@ export default function AppLayout({
   return (
     <AppContext.Provider value={{ profile, loading, refreshProfile: fetchProfile }}>
       <div className="flex min-h-screen bg-muted/40">
-        
+
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
           <div
@@ -285,23 +285,7 @@ export default function AppLayout({
                   </div>
                   <div className="space-y-1">
                     {section.items.map((item) => {
-                      const itemUrl = new URL(item.href, 'http://localhost')
-                      const itemPath = itemUrl.pathname
-                      const hasQueryParams = itemUrl.searchParams.toString().length > 0
-                      
-                      let isActive = false
-                      if (hasQueryParams) {
-                        let paramsMatch = true
-                        itemUrl.searchParams.forEach((val, key) => {
-                          if (searchParams.get(key) !== val) {
-                            paramsMatch = false
-                          }
-                        })
-                        isActive = (pathname === itemPath) && paramsMatch
-                      } else {
-                        isActive = pathname === itemPath || pathname.startsWith(itemPath + '/')
-                      }
-                      
+                      const isActive = pathname === item.href.split('?')[0] || pathname.startsWith(item.href.split('?')[0] + '/')
                       const Icon = item.icon
                       return (
                         <Link
@@ -309,8 +293,8 @@ export default function AppLayout({
                           href={item.href}
                           className={cn(
                             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                            isActive 
-                              ? "bg-primary text-primary-foreground" 
+                            isActive
+                              ? "bg-primary text-primary-foreground"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                         >
@@ -326,7 +310,7 @@ export default function AppLayout({
           </nav>
 
           <div className="border-t p-4">
-            <div 
+            <div
               className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-muted cursor-pointer transition-colors"
               onClick={handleLogout}
               title="Click to sign out"
