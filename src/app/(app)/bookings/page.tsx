@@ -3,17 +3,20 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
-import type { Booking, Asset } from '@/lib/types'
+import type { Booking } from '@/lib/types'
+import BookingForm from '@/components/forms/BookingForm'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { CalendarRange, Check, X, Ban } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function BookingsPage() {
   const { profile } = useApp()
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [bookableAssets, setBookableAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ asset_id: '', start_at: '', end_at: '', purpose: '' })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const supabase = createClient()
 
   const fetchBookings = useCallback(async () => {
@@ -27,34 +30,7 @@ export default function BookingsPage() {
 
   useEffect(() => {
     fetchBookings()
-    const fetchAssets = async () => {
-      const { data } = await supabase.from('assets').select('id, name, asset_tag').eq('is_bookable', true).not('status', 'in', '("RETIRED","DISPOSED")').order('name')
-      setBookableAssets((data || []) as Asset[])
-    }
-    fetchAssets()
-  }, [fetchBookings, supabase])
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-
-    const { error: rpcError } = await supabase.rpc('create_booking', {
-      p_asset_id: formData.asset_id,
-      p_start_at: new Date(formData.start_at).toISOString(),
-      p_end_at: new Date(formData.end_at).toISOString(),
-      p_purpose: formData.purpose || null,
-    })
-
-    if (rpcError) {
-      setError(rpcError.message)
-    } else {
-      setShowForm(false)
-      setFormData({ asset_id: '', start_at: '', end_at: '', purpose: '' })
-      fetchBookings()
-    }
-    setSaving(false)
-  }
+  }, [fetchBookings])
 
   const handleCancel = async (bookingId: string) => {
     if (!confirm('Cancel this booking?')) return
@@ -72,16 +48,13 @@ export default function BookingsPage() {
     else fetchBookings()
   }
 
-  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newStart = e.target.value
-    setFormData(prev => {
-      // If end_at is earlier than new start_at, auto-update it
-      const newEnd = (prev.end_at && prev.end_at < newStart) ? newStart : prev.end_at
-      return { ...prev, start_at: newStart, end_at: newEnd }
-    })
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
   }
-
-  if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
 
   const canApprove = (b: any) => {
     if (profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER') return true
@@ -92,96 +65,112 @@ export default function BookingsPage() {
     return false
   }
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'UPCOMING': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'ONGOING': return 'bg-green-100 text-green-800 border-green-200'
+      case 'COMPLETED': return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'CANCELLED': return 'bg-red-100 text-red-800 border-red-200'
+      case 'REJECTED': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
   return (
-    <div>
-      <div style={{ marginBottom: 'var(--space-lg)' }}>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>📅 Book Resource</button>
-      </div>
-
-      {showForm && (
-        <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-          <h3 className="card-title" style={{ marginBottom: 'var(--space-md)' }}>New Booking</h3>
-          {error && <div className="alert-banner alert-error" style={{ marginBottom: 'var(--space-md)' }}>⚠ {error}</div>}
-          <form onSubmit={handleCreate}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 'var(--space-md)' }}>
-              <div className="form-group">
-                <label className="form-label">Resource *</label>
-                <select className="form-select" value={formData.asset_id} onChange={e => setFormData({...formData, asset_id: e.target.value})} required>
-                  <option value="">Select resource</option>
-                  {bookableAssets.map(a => <option key={a.id} value={a.id}>{a.asset_tag} — {a.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Start *</label>
-                <input className="form-input" type="datetime-local" min={new Date().toISOString().slice(0,16)} value={formData.start_at} onChange={handleStartDateChange} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">End *</label>
-                <input className="form-input" type="datetime-local" min={formData.start_at || new Date().toISOString().slice(0,16)} value={formData.end_at} onChange={e => setFormData({...formData, end_at: e.target.value})} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Purpose</label>
-                <input className="form-input" value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} placeholder="e.g. Team standup" />
-              </div>
-            </div>
-            <div className="flex gap-sm" style={{ marginTop: 'var(--space-md)' }}>
-              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Booking...' : 'Create Booking'}</button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-            </div>
-          </form>
+    <div className="space-y-6 pb-12">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Resource Bookings</h2>
+          <p className="text-muted-foreground mt-2">Manage shared resource reservations.</p>
         </div>
-      )}
-
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Resource</th>
-              <th>Requester</th>
-              <th>Start</th>
-              <th>End</th>
-              <th>Purpose</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.length === 0 ? (
-              <tr><td colSpan={7} className="data-table-empty">No bookings yet</td></tr>
-            ) : bookings.map(b => {
-              const asset = b.assets as unknown as { name: string; asset_tag: string } | null
-              const requester = b.profiles as unknown as { name: string } | null
-              return (
-                <tr key={b.id}>
-                  <td>
-                    <div className="font-medium">{asset?.name}</div>
-                    <div className="text-sm text-muted">{asset?.asset_tag}</div>
-                  </td>
-                  <td className="text-sm">{requester?.name}</td>
-                  <td className="text-sm">{new Date(b.start_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="text-sm">{new Date(b.end_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td className="text-sm text-secondary truncate" style={{ maxWidth: '200px' }}>{b.purpose || '—'}</td>
-                  <td><span className={`badge badge-${b.status.toLowerCase()}`}>{b.status}</span></td>
-                  <td>
-                    {b.status === 'PENDING' && canApprove(b) && (
-                      <div className="flex gap-sm">
-                        <button className="btn btn-primary btn-sm" onClick={() => handleApprove(b.id, 'UPCOMING')}>Approve</button>
-                        <button className="btn btn-secondary btn-sm" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }} onClick={() => handleApprove(b.id, 'REJECTED')}>Reject</button>
-                      </div>
-                    )}
-                    {b.status === 'PENDING' && !canApprove(b) && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleCancel(b.id)}>Cancel</button>
-                    )}
-                    {(b.status === 'UPCOMING' || b.status === 'ONGOING') && (
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleCancel(b.id)}>Cancel</button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <Button onClick={() => setShowForm(true)}>
+          <CalendarRange className="mr-2 h-4 w-4" /> Book Resource
+        </Button>
       </div>
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>New Booking</DialogTitle>
+          </DialogHeader>
+          <BookingForm 
+            onSuccess={() => { setShowForm(false); fetchBookings() }} 
+            onCancel={() => setShowForm(false)} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Resource</TableHead>
+                <TableHead>Requester</TableHead>
+                <TableHead>Start</TableHead>
+                <TableHead>End</TableHead>
+                <TableHead>Purpose</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bookings.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    No bookings found
+                  </TableCell>
+                </TableRow>
+              ) : bookings.map(b => {
+                const asset = b.assets as unknown as { name: string; asset_tag: string } | null
+                const requester = b.profiles as unknown as { name: string } | null
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell>
+                      <div className="font-medium">{asset?.name}</div>
+                      <div className="text-xs text-muted-foreground">{asset?.asset_tag}</div>
+                    </TableCell>
+                    <TableCell>{requester?.name}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">{new Date(b.start_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">{new Date(b.end_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{b.purpose || '—'}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", getStatusBadge(b.status))}>
+                        {b.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        {b.status === 'PENDING' && canApprove(b) && (
+                          <>
+                            <Button size="sm" variant="default" onClick={() => handleApprove(b.id, 'UPCOMING')} title="Approve">
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => handleApprove(b.id, 'REJECTED')} title="Reject">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        {b.status === 'PENDING' && !canApprove(b) && (
+                          <Button size="sm" variant="ghost" onClick={() => handleCancel(b.id)} title="Cancel">
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {(b.status === 'UPCOMING' || b.status === 'ONGOING') && (
+                          <Button size="sm" variant="ghost" onClick={() => handleCancel(b.id)} title="Cancel">
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

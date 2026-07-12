@@ -3,17 +3,20 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
-import type { MaintenanceRequest, Asset } from '@/lib/types'
+import type { MaintenanceRequest } from '@/lib/types'
+import MaintenanceForm from '@/components/forms/MaintenanceForm'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Wrench, Check, X, CheckCircle2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function MaintenancePage() {
   const { profile } = useApp()
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
-  const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ asset_id: '', issue: '', priority: 'MEDIUM' })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const supabase = createClient()
   const isManager = profile?.role === 'ADMIN' || profile?.role === 'ASSET_MANAGER'
 
@@ -28,28 +31,7 @@ export default function MaintenancePage() {
 
   useEffect(() => {
     fetchRequests()
-    const fetchAssets = async () => {
-      const { data } = await supabase.from('assets').select('id, name, asset_tag').not('status', 'in', '("DISPOSED")').order('name')
-      setAssets((data || []) as Asset[])
-    }
-    fetchAssets()
-  }, [fetchRequests, supabase])
-
-  const handleRaise = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-
-    const { error: rpcError } = await supabase.rpc('raise_maintenance', {
-      p_asset_id: formData.asset_id,
-      p_issue: formData.issue,
-      p_priority: formData.priority,
-    })
-
-    if (rpcError) setError(rpcError.message)
-    else { setShowForm(false); setFormData({ asset_id: '', issue: '', priority: 'MEDIUM' }); fetchRequests() }
-    setSaving(false)
-  }
+  }, [fetchRequests])
 
   const handleApprove = async (id: string) => {
     const { error } = await supabase.rpc('approve_maintenance', { p_request_id: id })
@@ -71,104 +53,132 @@ export default function MaintenancePage() {
   }
 
   const getPriorityBadge = (p: string) => {
-    const map: Record<string, string> = { LOW: 'badge-active', MEDIUM: 'badge-reserved', HIGH: 'badge-allocated', CRITICAL: 'badge-danger' }
-    return map[p] || 'badge-active'
+    const map: Record<string, string> = { 
+      LOW: 'bg-green-100 text-green-800 border-green-200', 
+      MEDIUM: 'bg-blue-100 text-blue-800 border-blue-200', 
+      HIGH: 'bg-orange-100 text-orange-800 border-orange-200', 
+      CRITICAL: 'bg-red-100 text-red-800 border-red-200' 
+    }
+    return map[p] || 'bg-gray-100 text-gray-800 border-gray-200'
   }
 
-  if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
+  const getStatusBadge = (s: string) => {
+    switch(s) {
+      case 'PENDING': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'APPROVED': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'TECHNICIAN_ASSIGNED': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
+      case 'IN_PROGRESS': return 'bg-purple-100 text-purple-800 border-purple-200'
+      case 'RESOLVED': return 'bg-green-100 text-green-800 border-green-200'
+      case 'REJECTED': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <div style={{ marginBottom: 'var(--space-lg)' }}>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>🔧 Raise Maintenance Request</button>
-      </div>
-
-      {showForm && (
-        <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-          <h3 className="card-title" style={{ marginBottom: 'var(--space-md)' }}>New Maintenance Request</h3>
-          {error && <div className="alert-banner alert-error" style={{ marginBottom: 'var(--space-md)' }}>⚠ {error}</div>}
-          <form onSubmit={handleRaise}>
-            <div className="flex gap-md" style={{ flexWrap: 'wrap' }}>
-              <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-                <label className="form-label">Asset *</label>
-                <select className="form-select" value={formData.asset_id} onChange={e => setFormData({...formData, asset_id: e.target.value})} required>
-                  <option value="">Select asset</option>
-                  {assets.map(a => <option key={a.id} value={a.id}>{a.asset_tag} — {a.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group" style={{ flex: 1, minWidth: '140px' }}>
-                <label className="form-label">Priority *</label>
-                <select className="form-select" value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})}>
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="CRITICAL">Critical</option>
-                </select>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Issue Description *</label>
-              <textarea className="form-input" value={formData.issue} onChange={e => setFormData({...formData, issue: e.target.value})} required placeholder="Describe the issue..." />
-            </div>
-            <div className="flex gap-sm">
-              <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Submitting...' : 'Submit Request'}</button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-            </div>
-          </form>
+    <div className="space-y-6 pb-12">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Maintenance Requests</h2>
+          <p className="text-muted-foreground mt-2">Track and manage asset maintenance and repairs.</p>
         </div>
-      )}
-
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Asset</th>
-              <th>Raised By</th>
-              <th>Issue</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>Date</th>
-              {isManager && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {requests.length === 0 ? (
-              <tr><td colSpan={isManager ? 7 : 6} className="data-table-empty">No maintenance requests</td></tr>
-            ) : requests.map(req => {
-              const asset = req.assets as unknown as { name: string; asset_tag: string } | null
-              const raiser = req.profiles as unknown as { name: string } | null
-              return (
-                <tr key={req.id}>
-                  <td>
-                    <div className="font-medium">{asset?.name}</div>
-                    <div className="text-sm text-muted">{asset?.asset_tag}</div>
-                  </td>
-                  <td className="text-sm">{raiser?.name}</td>
-                  <td className="text-sm truncate" style={{ maxWidth: '250px' }}>{req.issue}</td>
-                  <td><span className={`badge ${getPriorityBadge(req.priority)}`}>{req.priority}</span></td>
-                  <td><span className={`badge badge-${req.status.toLowerCase().replace('_', '-')}`}>{req.status.replace('_', ' ')}</span></td>
-                  <td className="text-sm text-muted">{new Date(req.created_at).toLocaleDateString()}</td>
-                  {isManager && (
-                    <td>
-                      <div className="flex gap-xs">
-                        {req.status === 'PENDING' && (
-                          <>
-                            <button className="btn btn-primary btn-sm" onClick={() => handleApprove(req.id)}>Approve</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => handleReject(req.id)}>Reject</button>
-                          </>
-                        )}
-                        {['APPROVED', 'TECHNICIAN_ASSIGNED', 'IN_PROGRESS'].includes(req.status) && (
-                          <button className="btn btn-secondary btn-sm" onClick={() => handleResolve(req.id)}>Resolve</button>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <Button onClick={() => setShowForm(true)}>
+          <Wrench className="mr-2 h-4 w-4" /> Raise Request
+        </Button>
       </div>
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>New Maintenance Request</DialogTitle>
+          </DialogHeader>
+          <MaintenanceForm 
+            onSuccess={() => { setShowForm(false); fetchRequests() }} 
+            onCancel={() => setShowForm(false)} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Asset</TableHead>
+                <TableHead>Raised By</TableHead>
+                <TableHead>Issue</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                {isManager && <TableHead className="text-right">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {requests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isManager ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                    No maintenance requests found
+                  </TableCell>
+                </TableRow>
+              ) : requests.map(req => {
+                const asset = req.assets as unknown as { name: string; asset_tag: string } | null
+                const raiser = req.profiles as unknown as { name: string } | null
+                return (
+                  <TableRow key={req.id}>
+                    <TableCell>
+                      <div className="font-medium">{asset?.name}</div>
+                      <div className="text-xs text-muted-foreground">{asset?.asset_tag}</div>
+                    </TableCell>
+                    <TableCell className="text-sm">{raiser?.name}</TableCell>
+                    <TableCell className="text-sm max-w-[250px] truncate" title={req.issue}>{req.issue}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", getPriorityBadge(req.priority))}>
+                        {req.priority}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", getStatusBadge(req.status))}>
+                        {req.status.replace('_', ' ')}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {new Date(req.created_at).toLocaleDateString()}
+                    </TableCell>
+                    {isManager && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {req.status === 'PENDING' && (
+                            <>
+                              <Button size="sm" variant="default" onClick={() => handleApprove(req.id)} title="Approve">
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleReject(req.id)} title="Reject">
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          {['APPROVED', 'TECHNICIAN_ASSIGNED', 'IN_PROGRESS'].includes(req.status) && (
+                            <Button size="sm" variant="outline" onClick={() => handleResolve(req.id)} title="Resolve">
+                              <CheckCircle2 className="mr-2 h-4 w-4" /> Resolve
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

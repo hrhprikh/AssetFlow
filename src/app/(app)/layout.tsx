@@ -2,9 +2,16 @@
 
 import { useEffect, useState, createContext, useContext, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
+import { 
+  LayoutDashboard, Building2, Users, Package, Link as LinkIcon, 
+  CalendarRange, Wrench, ClipboardCheck, TrendingUp, FileText, 
+  Bell, RefreshCw, User, LogOut, Menu, X
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // ---- Context ----
 interface AppContextType {
@@ -27,7 +34,7 @@ export function useApp() {
 interface NavItem {
   label: string
   href: string
-  icon: string
+  icon: React.ElementType
   roles?: string[]
 }
 
@@ -38,31 +45,31 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
         {
           label: 'Overview',
           items: [
-            { label: 'Dashboard', href: '/dashboard', icon: '📊' },
+            { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
           ],
         },
         {
           label: 'Management',
           items: [
-            { label: 'Organization Setup', href: '/organization', icon: '🏢' },
-            { label: 'Employee Directory', href: '/organization?tab=employees', icon: '👥' },
+            { label: 'Organization Setup', href: '/organization', icon: Building2 },
+            { label: 'Employee Directory', href: '/organization?tab=employees', icon: Users },
           ]
         },
         {
           label: 'Assets',
           items: [
-            { label: 'Assets', href: '/assets', icon: '📦' },
-            { label: 'Allocations', href: '/allocations', icon: '🔗' },
-            { label: 'Bookings', href: '/bookings', icon: '📅' },
+            { label: 'Assets', href: '/assets', icon: Package },
+            { label: 'Allocations', href: '/allocations', icon: LinkIcon },
+            { label: 'Bookings', href: '/bookings', icon: CalendarRange },
           ],
         },
         {
           label: 'Operations',
           items: [
-            { label: 'Maintenance', href: '/maintenance', icon: '🔧' },
-            { label: 'Audits', href: '/audits', icon: '📋' },
-            { label: 'Reports', href: '/reports', icon: '📈' },
-            { label: 'Activity Logs', href: '/logs', icon: '📝' },
+            { label: 'Maintenance', href: '/maintenance', icon: Wrench },
+            { label: 'Audits', href: '/audits', icon: ClipboardCheck },
+            { label: 'Reports', href: '/reports', icon: TrendingUp },
+            { label: 'Activity Logs', href: '/logs', icon: FileText },
           ],
         },
       ];
@@ -71,23 +78,23 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
         {
           label: 'Overview',
           items: [
-            { label: 'Dashboard', href: '/dashboard', icon: '📊' },
+            { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
           ],
         },
         {
           label: 'Assets',
           items: [
-            { label: 'Assets', href: '/assets', icon: '📦' },
-            { label: 'Allocations', href: '/allocations', icon: '🔗' },
-            { label: 'Transfers', href: '/transfers', icon: '🔄' },
+            { label: 'Assets', href: '/assets', icon: Package },
+            { label: 'Allocations', href: '/allocations', icon: LinkIcon },
+            { label: 'Transfers', href: '/transfers', icon: RefreshCw },
           ],
         },
         {
           label: 'Operations',
           items: [
-            { label: 'Maintenance', href: '/maintenance', icon: '🔧' },
-            { label: 'Audits', href: '/audits', icon: '📋' },
-            { label: 'Reports', href: '/reports', icon: '📈' },
+            { label: 'Maintenance', href: '/maintenance', icon: Wrench },
+            { label: 'Audits', href: '/audits', icon: ClipboardCheck },
+            { label: 'Reports', href: '/reports', icon: TrendingUp },
           ],
         },
       ];
@@ -96,16 +103,16 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
         {
           label: 'Overview',
           items: [
-            { label: 'Dashboard', href: '/dashboard', icon: '📊' },
+            { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
           ],
         },
         {
           label: 'Department',
           items: [
-            { label: 'Department Assets', href: '/assets', icon: '📦' },
-            { label: 'Transfers', href: '/transfers', icon: '🔄' },
-            { label: 'Bookings', href: '/bookings', icon: '📅' },
-            { label: 'Audits', href: '/audits', icon: '📋' },
+            { label: 'Department Assets', href: '/assets', icon: Package },
+            { label: 'Transfers', href: '/transfers', icon: RefreshCw },
+            { label: 'Bookings', href: '/bookings', icon: CalendarRange },
+            { label: 'Audits', href: '/audits', icon: ClipboardCheck },
           ],
         },
       ];
@@ -114,18 +121,18 @@ const getNavSections = (role: string): { label: string; items: NavItem[] }[] => 
         {
           label: 'Overview',
           items: [
-            { label: 'Dashboard', href: '/dashboard', icon: '📊' },
-            { label: 'Notifications', href: '/notifications', icon: '🔔' },
+            { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+            { label: 'Notifications', href: '/notifications', icon: Bell },
           ],
         },
         {
           label: 'Personal',
           items: [
-            { label: 'My Assets', href: '/assets?scope=mine', icon: '📦' },
-            { label: 'Book Resources', href: '/assets?scope=bookable', icon: '📅' },
-            { label: 'My Bookings', href: '/bookings', icon: '📅' },
-            { label: 'Maintenance Requests', href: '/maintenance', icon: '🔧' },
-            { label: 'Profile', href: '/profile', icon: '👤' },
+            { label: 'My Assets', href: '/assets?scope=mine', icon: Package },
+            { label: 'Book Resources', href: '/assets?scope=bookable', icon: CalendarRange },
+            { label: 'My Bookings', href: '/bookings', icon: CalendarRange },
+            { label: 'Maintenance Requests', href: '/maintenance', icon: Wrench },
+            { label: 'Profile', href: '/profile', icon: User },
           ],
         },
       ];
@@ -144,6 +151,7 @@ export default function AppLayout({
   const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const fetchProfile = useCallback(async () => {
@@ -178,7 +186,6 @@ export default function AppLayout({
     fetchProfile()
     fetchUnread()
 
-    // Realtime subscription for notifications
     const channel = supabase
       .channel('notifications-count')
       .on('postgres_changes', {
@@ -195,19 +202,15 @@ export default function AppLayout({
     }
   }, [fetchProfile, fetchUnread, supabase])
 
-  // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false)
   }, [pathname])
 
   useEffect(() => {
-    // Route Protection
     if (!loading && profile) {
       const allowedSections = getNavSections(profile.role)
       const allowedHrefs = allowedSections.flatMap(s => s.items.map(i => i.href.split('?')[0]))
       
-      // Allow base dashboard, and exact matches or sub-routes of allowed items
-      // We strip query params from item.href just in case (e.g. /organization?tab=employees -> /organization)
       const isAllowed = allowedHrefs.some(href => 
         pathname === href || pathname.startsWith(href + '/')
       )
@@ -236,8 +239,8 @@ export default function AppLayout({
 
   if (loading) {
     return (
-      <div className="loading-page" style={{ minHeight: '100vh' }}>
-        <div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     )
   }
@@ -246,81 +249,118 @@ export default function AppLayout({
 
   return (
     <AppContext.Provider value={{ profile, loading, refreshProfile: fetchProfile }}>
-      <div className="app-layout">
-        {/* Sidebar Overlay (mobile) */}
+      <div className="flex min-h-screen bg-muted/40">
+        
+        {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
           <div
-            className="modal-overlay"
-            style={{ zIndex: 99, background: 'rgba(0,0,0,0.5)', backdropFilter: 'none' }}
+            className="fixed inset-0 z-40 bg-black/80 md:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
         {/* Sidebar */}
-        <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-          <div className="sidebar-header">
-            <div className="sidebar-logo-icon">A</div>
-            <span className="sidebar-logo-text">AssetFlow</span>
+        <aside className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r bg-background transition-transform md:sticky md:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
+          <div className="flex h-16 shrink-0 items-center border-b px-6">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
+              A
+            </div>
+            <span className="ml-3 text-lg font-semibold tracking-tight">AssetFlow</span>
+            <Button variant="ghost" size="icon" className="ml-auto md:hidden" onClick={() => setSidebarOpen(false)}>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
 
-          <nav className="sidebar-nav">
+          <nav className="flex-1 overflow-y-auto p-4 space-y-6">
             {navSections.map((section) => {
               if (section.items.length === 0) return null
 
               return (
                 <div key={section.label}>
-                  <div className="sidebar-section-label">{section.label}</div>
-                  {section.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`sidebar-link ${pathname === item.href.split('?')[0] || pathname.startsWith(item.href.split('?')[0] + '/') ? 'active' : ''}`}
-                    >
-                      <span className="sidebar-link-icon">{item.icon}</span>
-                      {item.label}
-                    </Link>
-                  ))}
+                  <div className="mb-2 px-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                    {section.label}
+                  </div>
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const itemUrl = new URL(item.href, 'http://localhost')
+                      const itemPath = itemUrl.pathname
+                      const hasQueryParams = itemUrl.searchParams.toString().length > 0
+                      
+                      let isActive = false
+                      if (hasQueryParams) {
+                        let paramsMatch = true
+                        itemUrl.searchParams.forEach((val, key) => {
+                          if (searchParams.get(key) !== val) {
+                            paramsMatch = false
+                          }
+                        })
+                        isActive = (pathname === itemPath) && paramsMatch
+                      } else {
+                        isActive = pathname === itemPath || pathname.startsWith(itemPath + '/')
+                      }
+                      
+                      const Icon = item.icon
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                            isActive 
+                              ? "bg-primary text-primary-foreground" 
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })}
           </nav>
 
-          <div className="sidebar-footer">
-            <div className="sidebar-user" onClick={handleLogout} title="Click to sign out">
-              <div className="sidebar-avatar">
+          <div className="border-t p-4">
+            <div 
+              className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-muted cursor-pointer transition-colors"
+              onClick={handleLogout}
+              title="Click to sign out"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm font-medium">
                 {profile ? getInitials(profile.name || profile.email) : '?'}
               </div>
-              <div className="sidebar-user-info">
-                <div className="sidebar-user-name">{profile?.name || 'User'}</div>
-                <div className="sidebar-user-role">{profile?.role?.replace('_', ' ')}</div>
+              <div className="flex-1 overflow-hidden">
+                <div className="truncate text-sm font-medium">{profile?.name || 'User'}</div>
+                <div className="truncate text-xs text-muted-foreground capitalize">{profile?.role?.replace('_', ' ').toLowerCase()}</div>
               </div>
-              <span style={{ color: 'var(--text-muted)', fontSize: '16px' }}>⏻</span>
+              <LogOut className="h-4 w-4 text-muted-foreground" />
             </div>
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className="main-content">
-          <header className="main-header">
-            <div className="main-header-left">
-              <button
-                className="mobile-menu-btn"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                aria-label="Toggle navigation menu"
-              >
-                ☰
-              </button>
-              <h1 className="page-title">
+        <main className="flex w-full flex-1 flex-col">
+          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-8">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setSidebarOpen(true)}>
+                <Menu className="h-5 w-5" />
+              </Button>
+              <h1 className="text-xl font-semibold tracking-tight">
                 {navSections.flatMap(s => s.items).find(i =>
                   pathname === i.href || pathname.startsWith(i.href + '/')
                 )?.label || 'AssetFlow'}
               </h1>
             </div>
-            <div className="main-header-right">
-              <Link href="/notifications" className="notification-bell">
-                🔔
+            <div className="flex items-center gap-4">
+              <Link href="/notifications" className="relative text-muted-foreground hover:text-foreground transition-colors">
+                <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                  <span className="notification-badge">
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
@@ -328,7 +368,7 @@ export default function AppLayout({
             </div>
           </header>
 
-          <div className="page-content">
+          <div className="flex-1 p-4 md:p-8 overflow-y-auto">
             {children}
           </div>
         </main>

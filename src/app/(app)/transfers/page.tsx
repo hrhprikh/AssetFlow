@@ -4,6 +4,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
 import type { TransferRequest } from '@/lib/types'
+import { Card, CardContent } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Check, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function TransfersPage() {
   const { profile } = useApp()
@@ -44,57 +49,93 @@ export default function TransfersPage() {
     else fetchTransfers()
   }
 
-  if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
+  const getStatusBadge = (s: string) => {
+    switch (s) {
+      case 'REQUESTED': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'APPROVED': return 'bg-green-100 text-green-800 border-green-200'
+      case 'REJECTED': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Asset</th>
-              <th>Requested By</th>
-              <th>Transfer To</th>
-              <th>Reason</th>
-              <th>Status</th>
-              <th>Date</th>
-              {isManager && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {transfers.length === 0 ? (
-              <tr><td colSpan={isManager ? 7 : 6} className="data-table-empty">No transfer requests</td></tr>
-            ) : transfers.map(t => {
-              const asset = t.assets as unknown as { name: string; asset_tag: string } | null
-              const requester = t.requester as unknown as { name: string } | null
-              const target = t.target as unknown as { name: string } | null
-              return (
-                <tr key={t.id}>
-                  <td>
-                    <div className="font-medium">{asset?.name}</div>
-                    <div className="text-sm text-muted">{asset?.asset_tag}</div>
-                  </td>
-                  <td className="text-sm">{requester?.name}</td>
-                  <td className="text-sm">{target?.name}</td>
-                  <td className="text-sm text-secondary truncate" style={{ maxWidth: '200px' }}>{t.reason || '—'}</td>
-                  <td><span className={`badge badge-${t.status.toLowerCase()}`}>{t.status}</span></td>
-                  <td className="text-sm text-muted">{new Date(t.created_at).toLocaleDateString()}</td>
-                  {isManager && (
-                    <td>
-                      {t.status === 'REQUESTED' && (
-                        <div className="flex gap-xs">
-                          <button className="btn btn-primary btn-sm" onClick={() => handleApprove(t.id)}>Approve</button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => handleReject(t.id)}>Reject</button>
-                        </div>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+    <div className="space-y-6 pb-12">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Asset Transfers</h2>
+        <p className="text-muted-foreground mt-2">Manage requests to transfer assets between employees.</p>
       </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Asset</TableHead>
+                <TableHead>Requested By</TableHead>
+                <TableHead>Transfer To</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                {isManager && <TableHead className="text-right">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transfers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isManager ? 7 : 6} className="h-24 text-center text-muted-foreground">
+                    No transfer requests found
+                  </TableCell>
+                </TableRow>
+              ) : transfers.map(t => {
+                const asset = t.assets as unknown as { name: string; asset_tag: string } | null
+                const requester = t.requester as unknown as { name: string } | null
+                const target = t.target as unknown as { name: string } | null
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      <div className="font-medium">{asset?.name}</div>
+                      <div className="text-xs text-muted-foreground">{asset?.asset_tag}</div>
+                    </TableCell>
+                    <TableCell className="text-sm">{requester?.name}</TableCell>
+                    <TableCell className="text-sm">{target?.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={t.reason || ''}>{t.reason || '—'}</TableCell>
+                    <TableCell>
+                      <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", getStatusBadge(t.status))}>
+                        {t.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                      {new Date(t.created_at).toLocaleDateString()}
+                    </TableCell>
+                    {isManager && (
+                      <TableCell className="text-right">
+                        {t.status === 'REQUESTED' && (
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="default" onClick={() => handleApprove(t.id)} title="Approve">
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => handleReject(t.id)} title="Reject">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

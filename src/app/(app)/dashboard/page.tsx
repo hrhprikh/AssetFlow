@@ -4,7 +4,23 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
 import type { DashboardKPIs, Allocation, Asset, Profile } from '@/lib/types'
+import BookingForm from '@/components/forms/BookingForm'
+import MaintenanceForm from '@/components/forms/MaintenanceForm'
+import TransferReturnForm from '@/components/forms/TransferReturnForm'
 import Link from 'next/link'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { 
+  Building2, Users, TrendingUp, Package, Link as LinkIcon, 
+  CalendarRange, Wrench, ClipboardCheck, RefreshCw, AlertTriangle, CheckCircle2
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
   const { profile } = useApp()
@@ -24,13 +40,15 @@ export default function DashboardPage() {
   
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  
+  const [activeModal, setActiveModal] = useState<'NONE' | 'BOOK' | 'MAINTAIN' | 'TRANSFER'>('NONE')
+
   const supabase = createClient()
 
   useEffect(() => {
     if (!profile) return
 
     const fetchDashboard = async () => {
-      // Fetch KPIs via RPC
       const { data: kpiData } = await supabase.rpc('get_dashboard_kpis')
       if (kpiData) setKpis(kpiData as unknown as DashboardKPIs)
 
@@ -64,109 +82,117 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="loading-page">
-        <div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} />
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     )
   }
 
-  // --- ROLE BASED SUB-COMPONENTS ---
   const renderAdminDashboard = () => (
-    <>
-      <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
-        <div className="card-header"><h3 className="card-title">Admin Quick Actions</h3></div>
-        <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-          <Link href="/organization" className="btn btn-primary">🏢 Organization Setup</Link>
-          <Link href="/organization?tab=employees" className="btn btn-secondary">👥 Employee Directory</Link>
-          <Link href="/reports" className="btn btn-secondary">📈 View Reports</Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Admin Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-4">
+          <Button asChild><Link href="/organization"><Building2 className="mr-2 h-4 w-4" /> Organization Setup</Link></Button>
+          <Button asChild variant="secondary"><Link href="/organization?tab=employees"><Users className="mr-2 h-4 w-4" /> Employee Directory</Link></Button>
+          <Button asChild variant="secondary"><Link href="/reports"><TrendingUp className="mr-2 h-4 w-4" /> View Reports</Link></Button>
+        </CardContent>
+      </Card>
       {renderOrgKPIs('Organization Overview')}
       {renderOverdueReturns()}
-    </>
+    </div>
   )
 
   const renderAssetManagerDashboard = () => (
-    <>
-      <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
-        <div className="card-header"><h3 className="card-title">Manager Quick Actions</h3></div>
-        <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-          <Link href="/assets?action=register" className="btn btn-primary">+ Register Asset</Link>
-          <Link href="/allocations" className="btn btn-secondary">🔗 Allocate Asset</Link>
-          <Link href="/maintenance" className="btn btn-secondary">🔧 Process Maintenance</Link>
-          <Link href="/audits" className="btn btn-secondary">📋 Process Audits</Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Manager Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-4">
+          <Button asChild><Link href="/assets?action=register"><Package className="mr-2 h-4 w-4" /> Register Asset</Link></Button>
+          <Button asChild variant="secondary"><Link href="/allocations"><LinkIcon className="mr-2 h-4 w-4" /> Allocate Asset</Link></Button>
+          <Button asChild variant="secondary"><Link href="/maintenance"><Wrench className="mr-2 h-4 w-4" /> Process Maintenance</Link></Button>
+          <Button asChild variant="secondary"><Link href="/audits"><ClipboardCheck className="mr-2 h-4 w-4" /> Process Audits</Link></Button>
+        </CardContent>
+      </Card>
       {renderOrgKPIs('Asset Overview')}
       {renderOverdueReturns()}
-    </>
+    </div>
   )
 
   const renderDeptHeadDashboard = () => (
-    <>
-      <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
-        <div className="card-header"><h3 className="card-title">Department Quick Actions</h3></div>
-        <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-          <Link href="/bookings?action=new" className="btn btn-primary">📅 Book Shared Resource</Link>
-          <Link href="/assets" className="btn btn-secondary">📦 View Department Assets</Link>
-          <Link href="/transfers" className="btn btn-secondary">🔄 Approve Transfers</Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Department Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-4">
+          <Button asChild><Link href="/bookings?action=new"><CalendarRange className="mr-2 h-4 w-4" /> Book Shared Resource</Link></Button>
+          <Button asChild variant="secondary"><Link href="/assets"><Package className="mr-2 h-4 w-4" /> View Department Assets</Link></Button>
+          <Button asChild variant="secondary"><Link href="/transfers"><RefreshCw className="mr-2 h-4 w-4" /> Approve Transfers</Link></Button>
+        </CardContent>
+      </Card>
       {renderDeptKPIs()}
-    </>
+    </div>
   )
 
   const renderEmployeeDashboard = () => (
-    <>
-      <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
-        <div className="card-header"><h3 className="card-title">Quick Actions</h3></div>
-        <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-          <Link href="/bookings?action=new" className="btn btn-primary">📅 Book Resource</Link>
-          <Link href="/maintenance" className="btn btn-secondary">🔧 Raise Maintenance</Link>
-          <button onClick={() => document.getElementById('my-assets')?.scrollIntoView({ behavior: 'smooth' })} className="btn btn-secondary">🔄 Request Transfer / Return</button>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-4">
+          <Button onClick={() => setActiveModal('BOOK')}><CalendarRange className="mr-2 h-4 w-4" /> Book Resource</Button>
+          <Button onClick={() => setActiveModal('MAINTAIN')} variant="secondary"><Wrench className="mr-2 h-4 w-4" /> Raise Maintenance</Button>
+          <Button onClick={() => setActiveModal('TRANSFER')} variant="secondary"><RefreshCw className="mr-2 h-4 w-4" /> Request Transfer / Return</Button>
+        </CardContent>
+      </Card>
       {renderPersonalKPIs()}
       {renderMyAssets()}
-    </>
+    </div>
   )
 
-  // --- REUSABLE SECTIONS ---
   const renderOrgKPIs = (title: string) => (
-    <div style={{ marginBottom: 'var(--space-xl)' }}>
-      <h3 style={{ marginBottom: 'var(--space-md)' }}>{title}</h3>
-      <div className="kpi-grid">
-        <KpiCard icon="✓" color="var(--color-success)" bgVar="var(--color-success-light)" value={kpis?.available_assets} label="Available Assets" />
-        <KpiCard icon="🔗" color="var(--color-info)" bgVar="var(--color-info-light)" value={kpis?.allocated_assets} label="Allocated Assets" />
-        <KpiCard icon="🔧" color="#a855f7" bgVar="rgba(168, 85, 247, 0.15)" value={kpis?.under_maintenance} label="Under Maintenance" />
-        <KpiCard icon="📅" color="var(--color-accent)" bgVar="rgba(6, 182, 212, 0.15)" value={kpis?.active_bookings} label="Active Bookings" />
-        <KpiCard icon="⚠" color="var(--color-danger)" bgVar="var(--color-danger-light)" value={kpis?.overdue_returns} label="Overdue Returns" />
-        <KpiCard icon="🔄" color="var(--color-warning)" bgVar="var(--color-warning-light)" value={kpis?.pending_transfers} label="Pending Transfers" />
-        <KpiCard icon="🛠" color="var(--color-warning)" bgVar="var(--color-warning-light)" value={kpis?.pending_maintenance} label="Pending Maintenance" />
-        <KpiCard icon="📦" color="var(--color-primary)" bgVar="var(--color-primary-light)" value={kpis?.total_assets} label="Total Assets" />
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <KpiCard icon={CheckCircle2} title="Available" value={kpis?.available_assets} />
+        <KpiCard icon={LinkIcon} title="Allocated" value={kpis?.allocated_assets} />
+        <KpiCard icon={Wrench} title="Maintenance" value={kpis?.under_maintenance} />
+        <KpiCard icon={CalendarRange} title="Bookings" value={kpis?.active_bookings} />
+        <KpiCard icon={AlertTriangle} title="Overdue" value={kpis?.overdue_returns} destructive />
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <KpiCard icon={RefreshCw} title="Pending Transfers" value={kpis?.pending_transfers} />
+        <KpiCard icon={Wrench} title="Pending Maintenance" value={kpis?.pending_maintenance} />
+        <KpiCard icon={Package} title="Total Assets" value={kpis?.total_assets} />
       </div>
     </div>
   )
 
   const renderDeptKPIs = () => (
-    <div style={{ marginBottom: 'var(--space-xl)' }}>
-      <h3 style={{ marginBottom: 'var(--space-md)' }}>Department Overview</h3>
-      <div className="kpi-grid">
-        <KpiCard icon="📦" color="var(--color-primary)" bgVar="var(--color-primary-light)" value={kpis?.total_assets} label="Department Assets" />
-        <KpiCard icon="🔗" color="var(--color-info)" bgVar="var(--color-info-light)" value={kpis?.allocated_assets} label="Allocated Assets" />
-        <KpiCard icon="📅" color="var(--color-accent)" bgVar="rgba(6, 182, 212, 0.15)" value={kpis?.active_bookings} label="Active Bookings" />
-        <KpiCard icon="🔄" color="var(--color-warning)" bgVar="var(--color-warning-light)" value={kpis?.pending_transfers} label="Pending Transfers" />
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold tracking-tight">Department Overview</h3>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KpiCard icon={Package} title="Department Assets" value={kpis?.total_assets} />
+        <KpiCard icon={LinkIcon} title="Allocated Assets" value={kpis?.allocated_assets} />
+        <KpiCard icon={CalendarRange} title="Active Bookings" value={kpis?.active_bookings} />
+        <KpiCard icon={RefreshCw} title="Pending Transfers" value={kpis?.pending_transfers} />
       </div>
     </div>
   )
 
   const renderPersonalKPIs = () => (
-    <div style={{ marginBottom: 'var(--space-xl)' }}>
-      <h3 style={{ marginBottom: 'var(--space-md)' }}>My Overview</h3>
-      <div className="kpi-grid">
-        <KpiCard icon="📦" color="var(--color-primary)" bgVar="var(--color-primary-light)" value={kpis?.allocated_assets} label="My Allocated Assets" />
-        <KpiCard icon="📅" color="var(--color-accent)" bgVar="rgba(6, 182, 212, 0.15)" value={kpis?.active_bookings} label="My Active Bookings" />
-        <KpiCard icon="🛠" color="var(--color-warning)" bgVar="var(--color-warning-light)" value={kpis?.pending_maintenance} label="My Pending Maintenance" />
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold tracking-tight">My Overview</h3>
+      <div className="grid gap-4 md:grid-cols-3">
+        <KpiCard icon={Package} title="My Allocated Assets" value={kpis?.allocated_assets} />
+        <KpiCard icon={CalendarRange} title="My Active Bookings" value={kpis?.active_bookings} />
+        <KpiCard icon={Wrench} title="My Pending Maintenance" value={kpis?.pending_maintenance} />
       </div>
     </div>
   )
@@ -174,79 +200,100 @@ export default function DashboardPage() {
   const renderOverdueReturns = () => {
     if (overdueItems.length === 0) return null
     return (
-      <div className="card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-        <div className="card-header">
-          <h3 className="card-title" style={{ color: 'var(--color-danger)' }}>⚠ Overdue Returns</h3>
-          <span className="badge badge-danger">{overdueItems.length}</span>
-        </div>
-        <div className="data-table-wrapper" style={{ border: 'none' }}>
-          <table className="data-table">
-            <thead>
-              <tr><th>Asset</th><th>Expected Return</th><th>Overdue By</th></tr>
-            </thead>
-            <tbody>
+      <Card className="border-destructive">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-destructive flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" /> Overdue Returns
+          </CardTitle>
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-xs font-bold text-destructive-foreground">
+            {overdueItems.length}
+          </span>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Asset</TableHead>
+                <TableHead>Expected Return</TableHead>
+                <TableHead className="text-right">Overdue By</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {overdueItems.map((item) => {
                 const asset = item.assets as unknown as Asset
                 const expected = new Date(item.expected_return_at!)
                 const overdueDays = Math.floor((Date.now() - expected.getTime()) / (1000 * 60 * 60 * 24))
                 return (
-                  <tr key={item.id}>
-                    <td>
+                  <TableRow key={item.id}>
+                    <TableCell>
                       <div className="font-medium">{asset?.name}</div>
-                      <div className="text-sm text-muted">{asset?.asset_tag}</div>
-                    </td>
-                    <td className="text-sm">{expected.toLocaleDateString()}</td>
-                    <td>
-                      <span className="badge badge-danger">{overdueDays} day{overdueDays !== 1 ? 's' : ''}</span>
-                    </td>
-                  </tr>
+                      <div className="text-xs text-muted-foreground">{asset?.asset_tag}</div>
+                    </TableCell>
+                    <TableCell>{expected.toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive ring-1 ring-inset ring-destructive/20">
+                        {overdueDays} day{overdueDays !== 1 ? 's' : ''}
+                      </span>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     )
   }
 
   const renderMyAssets = () => (
-    <div className="card" id="my-assets">
-      <div className="card-header">
-        <h3 className="card-title">My Current Assets</h3>
-        <span className="badge badge-info">{myAssets.length}</span>
-      </div>
-      <div className="data-table-wrapper" style={{ border: 'none' }}>
-        <table className="data-table">
-          <thead>
-            <tr><th>Asset Tag</th><th>Name</th><th>Allocated On</th><th>Actions</th></tr>
-          </thead>
-          <tbody>
+    <Card id="my-assets">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle>My Current Assets</CardTitle>
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          {myAssets.length}
+        </span>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Asset Tag</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Allocated On</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {myAssets.length === 0 ? (
-              <tr><td colSpan={4} className="text-center text-muted" style={{ padding: 'var(--space-xl)' }}>You have no active asset allocations.</td></tr>
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  You have no active asset allocations.
+                </TableCell>
+              </TableRow>
             ) : myAssets.map((item) => {
               const asset = item.assets as unknown as Asset
               return (
-                <tr key={item.id}>
-                  <td>
-                    <Link href={`/assets/${asset.id}`} style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '13px' }}>
+                <TableRow key={item.id}>
+                  <TableCell className="font-mono text-xs font-medium">
+                    <Link href={`/assets/${asset.id}`} className="hover:underline hover:text-primary">
                       {asset?.asset_tag}
                     </Link>
-                  </td>
-                  <td className="font-medium">{asset?.name}</td>
-                  <td className="text-sm">{new Date(item.allocated_at).toLocaleDateString()}</td>
-                  <td>
-                    <div className="flex gap-sm">
-                      <button className="btn btn-secondary btn-sm" onClick={() => setShowTransferFor(asset)}>Transfer</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setShowReturnFor(asset)}>Return</button>
+                  </TableCell>
+                  <TableCell className="font-medium">{asset?.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{new Date(item.allocated_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setShowTransferFor(asset)}>Transfer</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setShowReturnFor(asset)}>Return</Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )
             })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 
   const handleRequestTransfer = async (e: React.FormEvent) => {
@@ -292,12 +339,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 'var(--space-xl)' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px' }}>
+    <div className="space-y-6 pb-12">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">
           Welcome back, {profile?.name?.split(' ')[0] || 'User'} 👋
         </h2>
-        <p className="text-secondary text-sm">
+        <p className="text-muted-foreground mt-2">
           Here&apos;s an overview of your asset management system
         </p>
       </div>
@@ -308,79 +355,125 @@ export default function DashboardPage() {
       {profile?.role === 'EMPLOYEE' && renderEmployeeDashboard()}
 
       {/* Transfer Modal */}
-      {showTransferFor && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3 className="modal-title">Request Transfer: {showTransferFor.name}</h3>
-              <button className="modal-close" onClick={() => setShowTransferFor(null)}>✕</button>
+      <Dialog open={!!showTransferFor} onOpenChange={(open) => !open && setShowTransferFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Transfer: {showTransferFor?.name}</DialogTitle>
+          </DialogHeader>
+          {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+          <form onSubmit={handleRequestTransfer} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Transfer To *</Label>
+              <Select value={transferTargetId} onValueChange={setTransferTargetId} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Employee..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.name} ({e.email})</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            {error && <div className="alert-banner alert-error" style={{ margin: 'var(--space-md) 0' }}>⚠ {error}</div>}
-            <form onSubmit={handleRequestTransfer}>
-              <div className="form-group">
-                <label className="form-label">Transfer To *</label>
-                <select className="form-select" value={transferTargetId} onChange={e => setTransferTargetId(e.target.value)} required>
-                  <option value="">Select Employee...</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.email})</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Reason</label>
-                <textarea className="form-input" value={transferReason} onChange={e => setTransferReason(e.target.value)} placeholder="Why is this transfer needed?" required />
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowTransferFor(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Submitting...' : 'Submit Request'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea value={transferReason} onChange={e => setTransferReason(e.target.value)} placeholder="Why is this transfer needed?" required />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowTransferFor(null)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? 'Submitting...' : 'Submit Request'}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Return Modal */}
-      {showReturnFor && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3 className="modal-title">Return Asset: {showReturnFor.name}</h3>
-              <button className="modal-close" onClick={() => setShowReturnFor(null)}>✕</button>
+      <Dialog open={!!showReturnFor} onOpenChange={(open) => !open && setShowReturnFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Return Asset: {showReturnFor?.name}</DialogTitle>
+          </DialogHeader>
+          {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+          <form onSubmit={handleReturn} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Return Condition</Label>
+              <Select value={returnCondition} onValueChange={setReturnCondition}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Condition" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="New">New</SelectItem>
+                  <SelectItem value="Good">Good</SelectItem>
+                  <SelectItem value="Fair">Fair</SelectItem>
+                  <SelectItem value="Poor">Poor</SelectItem>
+                  <SelectItem value="Damaged">Damaged</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            {error && <div className="alert-banner alert-error" style={{ margin: 'var(--space-md) 0' }}>⚠ {error}</div>}
-            <form onSubmit={handleReturn}>
-              <div className="form-group">
-                <label className="form-label">Return Condition</label>
-                <select className="form-select" value={returnCondition} onChange={e => setReturnCondition(e.target.value)}>
-                  <option value="New">New</option>
-                  <option value="Good">Good</option>
-                  <option value="Fair">Fair</option>
-                  <option value="Poor">Poor</option>
-                  <option value="Damaged">Damaged</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Return Notes</label>
-                <textarea className="form-input" value={returnNotes} onChange={e => setReturnNotes(e.target.value)} placeholder="Any issues to report?" />
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowReturnFor(null)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Returning...' : 'Confirm Return'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div className="space-y-2">
+              <Label>Return Notes</Label>
+              <Textarea value={returnNotes} onChange={e => setReturnNotes(e.target.value)} placeholder="Any issues to report?" />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowReturnFor(null)}>Cancel</Button>
+              <Button type="submit" variant="default" disabled={saving}>{saving ? 'Returning...' : 'Confirm Return'}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Quick Action Modals */}
+      <Dialog open={activeModal === 'BOOK'} onOpenChange={(open) => !open && setActiveModal('NONE')}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>New Booking</DialogTitle>
+          </DialogHeader>
+          <BookingForm 
+            onSuccess={() => { setActiveModal('NONE'); alert('Booking created successfully!') }} 
+            onCancel={() => setActiveModal('NONE')} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={activeModal === 'MAINTAIN'} onOpenChange={(open) => !open && setActiveModal('NONE')}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Raise Maintenance Request</DialogTitle>
+          </DialogHeader>
+          <MaintenanceForm 
+            onSuccess={() => { setActiveModal('NONE'); alert('Maintenance request raised successfully!') }} 
+            onCancel={() => setActiveModal('NONE')} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={activeModal === 'TRANSFER'} onOpenChange={(open) => !open && setActiveModal('NONE')}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Request Transfer / Return</DialogTitle>
+          </DialogHeader>
+          <TransferReturnForm 
+            onSuccess={() => { 
+              setActiveModal('NONE')
+              alert('Request submitted successfully!')
+              if (typeof window !== 'undefined') window.location.reload()
+            }} 
+            onCancel={() => setActiveModal('NONE')} 
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function KpiCard({ icon, color, bgVar, value, label }: { icon: string, color: string, bgVar: string, value?: number, label: string }) {
+function KpiCard({ icon: Icon, title, value, destructive }: { icon: React.ElementType, title: string, value?: number, destructive?: boolean }) {
   return (
-    <div className="kpi-card" style={{ '--kpi-color': color } as React.CSSProperties}>
-      <div className="kpi-icon" style={{ background: bgVar, color }}>
-        {icon}
-      </div>
-      <div className="kpi-value">{value ?? 0}</div>
-      <div className="kpi-label">{label}</div>
-    </div>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className={cn("h-4 w-4", destructive ? "text-destructive" : "text-muted-foreground")} />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value ?? 0}</div>
+      </CardContent>
+    </Card>
   )
 }

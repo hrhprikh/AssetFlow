@@ -4,6 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '../layout'
 import type { Department, AssetCategory, Profile, UserRole } from '@/lib/types'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Building2, FolderTree, Users, Plus, Search, Edit2, Power, PowerOff } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type OrgTab = 'departments' | 'categories' | 'employees'
 
@@ -13,31 +22,38 @@ export default function OrganizationPage() {
   const isAdmin = profile?.role === 'ADMIN'
 
   return (
-    <div>
-      <div className="tabs">
+    <div className="space-y-6 pb-12">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Organization Settings</h2>
+        <p className="text-muted-foreground mt-2">Manage departments, asset categories, and the employee directory.</p>
+      </div>
+
+      <div className="flex space-x-1 rounded-xl bg-muted/50 p-1 w-fit">
         <button
-          className={`tab ${activeTab === 'departments' ? 'active' : ''}`}
+          className={cn("flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors", activeTab === 'departments' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/50")}
           onClick={() => setActiveTab('departments')}
         >
-          🏢 Departments
+          <Building2 className="h-4 w-4" /> Departments
         </button>
         <button
-          className={`tab ${activeTab === 'categories' ? 'active' : ''}`}
+          className={cn("flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors", activeTab === 'categories' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/50")}
           onClick={() => setActiveTab('categories')}
         >
-          📁 Categories
+          <FolderTree className="h-4 w-4" /> Categories
         </button>
         <button
-          className={`tab ${activeTab === 'employees' ? 'active' : ''}`}
+          className={cn("flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors", activeTab === 'employees' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/50")}
           onClick={() => setActiveTab('employees')}
         >
-          👥 Employee Directory
+          <Users className="h-4 w-4" /> Employees
         </button>
       </div>
 
-      {activeTab === 'departments' && <DepartmentsTab isAdmin={isAdmin} />}
-      {activeTab === 'categories' && <CategoriesTab isAdmin={isAdmin} />}
-      {activeTab === 'employees' && <EmployeesTab isAdmin={isAdmin} />}
+      <div className="mt-4">
+        {activeTab === 'departments' && <DepartmentsTab isAdmin={isAdmin} />}
+        {activeTab === 'categories' && <CategoriesTab isAdmin={isAdmin} />}
+        {activeTab === 'employees' && <EmployeesTab isAdmin={isAdmin} />}
+      </div>
     </div>
   )
 }
@@ -50,16 +66,13 @@ function DepartmentsTab({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingDept, setEditingDept] = useState<Department | null>(null)
-  const [formData, setFormData] = useState({ name: '', code: '', parent_id: '' })
+  const [formData, setFormData] = useState({ name: '', code: '', parent_id: 'NONE' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const supabase = createClient()
 
   const fetchDepartments = useCallback(async () => {
-    const { data } = await supabase
-      .from('departments')
-      .select('*')
-      .order('name')
+    const { data } = await supabase.from('departments').select('*').order('name')
     setDepartments((data as Department[]) || [])
     setLoading(false)
   }, [supabase])
@@ -74,7 +87,7 @@ function DepartmentsTab({ isAdmin }: { isAdmin: boolean }) {
     const payload = {
       name: formData.name.trim(),
       code: formData.code.trim().toUpperCase(),
-      parent_id: formData.parent_id || null,
+      parent_id: formData.parent_id === 'NONE' ? null : formData.parent_id,
     }
 
     let result
@@ -89,7 +102,7 @@ function DepartmentsTab({ isAdmin }: { isAdmin: boolean }) {
     } else {
       setShowForm(false)
       setEditingDept(null)
-      setFormData({ name: '', code: '', parent_id: '' })
+      setFormData({ name: '', code: '', parent_id: 'NONE' })
       fetchDepartments()
     }
     setSaving(false)
@@ -103,93 +116,104 @@ function DepartmentsTab({ isAdmin }: { isAdmin: boolean }) {
 
   const startEdit = (dept: Department) => {
     setEditingDept(dept)
-    setFormData({ name: dept.name, code: dept.code, parent_id: dept.parent_id || '' })
+    setFormData({ name: dept.name, code: dept.code, parent_id: dept.parent_id || 'NONE' })
     setShowForm(true)
   }
 
-  if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
+  if (loading) return <div className="py-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
 
   return (
-    <div>
+    <div className="space-y-4 animate-in fade-in duration-300">
       {isAdmin && (
-        <div style={{ marginBottom: 'var(--space-lg)' }}>
-          <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditingDept(null); setFormData({ name: '', code: '', parent_id: '' }) }}>
-            + Add Department
-          </button>
+        <div className="flex justify-end">
+          <Button onClick={() => { setShowForm(true); setEditingDept(null); setFormData({ name: '', code: '', parent_id: 'NONE' }) }}>
+            <Plus className="mr-2 h-4 w-4" /> Add Department
+          </Button>
         </div>
       )}
 
-      {showForm && isAdmin && (
-        <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-          <h3 className="card-title" style={{ marginBottom: 'var(--space-md)' }}>
-            {editingDept ? 'Edit Department' : 'New Department'}
-          </h3>
-          {error && <div className="alert-banner alert-error" style={{ marginBottom: 'var(--space-md)' }}>⚠ {error}</div>}
-          <form onSubmit={handleSubmit}>
-            <div className="flex gap-md" style={{ flexWrap: 'wrap' }}>
-              <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-                <label className="form-label">Name</label>
-                <input className="form-input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="e.g. Engineering" />
-              </div>
-              <div className="form-group" style={{ flex: 1, minWidth: '150px' }}>
-                <label className="form-label">Code</label>
-                <input className="form-input" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} required placeholder="e.g. ENG" style={{ textTransform: 'uppercase' }} />
-              </div>
-              <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-                <label className="form-label">Parent Department</label>
-                <select className="form-select" value={formData.parent_id} onChange={e => setFormData({...formData, parent_id: e.target.value})}>
-                  <option value="">None (Top-level)</option>
-                  {departments.filter(d => d.id !== editingDept?.id).map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingDept ? 'Edit Department' : 'New Department'}</DialogTitle>
+          </DialogHeader>
+          {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="e.g. Engineering" />
             </div>
-            <div className="flex gap-sm" style={{ marginTop: 'var(--space-md)' }}>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? 'Saving...' : (editingDept ? 'Update' : 'Create')}
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => { setShowForm(false); setEditingDept(null) }}>Cancel</button>
+            <div className="space-y-2">
+              <Label>Code *</Label>
+              <Input value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} required placeholder="e.g. ENG" className="uppercase" />
+            </div>
+            <div className="space-y-2">
+              <Label>Parent Department</Label>
+              <Select value={formData.parent_id} onValueChange={v => setFormData({...formData, parent_id: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Parent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">None (Top-level)</SelectItem>
+                  {departments.filter(d => d.id !== editingDept?.id).map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? 'Saving...' : (editingDept ? 'Update' : 'Create')}</Button>
             </div>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Parent</th>
-              <th>Status</th>
-              {isAdmin && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {departments.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 5 : 4} className="data-table-empty">No departments yet</td></tr>
-            ) : departments.map(dept => (
-              <tr key={dept.id}>
-                <td className="font-medium">{dept.name}</td>
-                <td><code style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{dept.code}</code></td>
-                <td className="text-sm text-secondary">{departments.find(d => d.id === dept.parent_id)?.name || '—'}</td>
-                <td><span className={`badge ${dept.status === 'ACTIVE' ? 'badge-active' : 'badge-retired'}`}>{dept.status}</span></td>
-                {isAdmin && (
-                  <td>
-                    <div className="flex gap-xs">
-                      <button className="btn btn-ghost btn-sm" onClick={() => startEdit(dept)}>Edit</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggleStatus(dept)}>
-                        {dept.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Parent</TableHead>
+                <TableHead>Status</TableHead>
+                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {departments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 5 : 4} className="h-24 text-center text-muted-foreground">No departments yet</TableCell>
+                </TableRow>
+              ) : departments.map(dept => (
+                <TableRow key={dept.id}>
+                  <TableCell className="font-medium">{dept.name}</TableCell>
+                  <TableCell><code className="rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">{dept.code}</code></TableCell>
+                  <TableCell className="text-muted-foreground">{departments.find(d => d.id === dept.parent_id)?.name || '—'}</TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", dept.status === 'ACTIVE' ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-800 border-gray-200")}>
+                      {dept.status}
+                    </span>
+                  </TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => startEdit(dept)}>
+                          <Edit2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => toggleStatus(dept)} title={dept.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}>
+                          {dept.status === 'ACTIVE' ? <PowerOff className="h-4 w-4 text-destructive" /> : <Power className="h-4 w-4 text-green-600" />}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -245,78 +269,90 @@ function CategoriesTab({ isAdmin }: { isAdmin: boolean }) {
     fetchCategories()
   }
 
-  if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
+  const startEdit = (cat: AssetCategory) => {
+    setEditingCat(cat)
+    setFormData({ name: cat.name, description: cat.description || '' })
+    setShowForm(true)
+  }
+
+  if (loading) return <div className="py-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
 
   return (
-    <div>
+    <div className="space-y-4 animate-in fade-in duration-300">
       {isAdmin && (
-        <div style={{ marginBottom: 'var(--space-lg)' }}>
-          <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditingCat(null); setFormData({ name: '', description: '' }) }}>
-            + Add Category
-          </button>
+        <div className="flex justify-end">
+          <Button onClick={() => { setShowForm(true); setEditingCat(null); setFormData({ name: '', description: '' }) }}>
+            <Plus className="mr-2 h-4 w-4" /> Add Category
+          </Button>
         </div>
       )}
 
-      {showForm && isAdmin && (
-        <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
-          <h3 className="card-title" style={{ marginBottom: 'var(--space-md)' }}>
-            {editingCat ? 'Edit Category' : 'New Category'}
-          </h3>
-          {error && <div className="alert-banner alert-error" style={{ marginBottom: 'var(--space-md)' }}>⚠ {error}</div>}
-          <form onSubmit={handleSubmit}>
-            <div className="flex gap-md" style={{ flexWrap: 'wrap' }}>
-              <div className="form-group" style={{ flex: 1, minWidth: '200px' }}>
-                <label className="form-label">Name</label>
-                <input className="form-input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="e.g. Laptops" />
-              </div>
-              <div className="form-group" style={{ flex: 2, minWidth: '200px' }}>
-                <label className="form-label">Description</label>
-                <input className="form-input" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Optional description" />
-              </div>
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCat ? 'Edit Category' : 'New Category'}</DialogTitle>
+          </DialogHeader>
+          {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name *</Label>
+              <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="e.g. Laptops" />
             </div>
-            <div className="flex gap-sm" style={{ marginTop: 'var(--space-md)' }}>
-              <button type="submit" className="btn btn-primary" disabled={saving}>
-                {saving ? 'Saving...' : (editingCat ? 'Update' : 'Create')}
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Optional description" />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? 'Saving...' : (editingCat ? 'Update' : 'Create')}</Button>
             </div>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Description</th>
-              <th>Status</th>
-              {isAdmin && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {categories.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 4 : 3} className="data-table-empty">No categories yet</td></tr>
-            ) : categories.map(cat => (
-              <tr key={cat.id}>
-                <td className="font-medium">{cat.name}</td>
-                <td className="text-sm text-secondary">{cat.description || '—'}</td>
-                <td><span className={`badge ${cat.status === 'ACTIVE' ? 'badge-active' : 'badge-retired'}`}>{cat.status}</span></td>
-                {isAdmin && (
-                  <td>
-                    <div className="flex gap-xs">
-                      <button className="btn btn-ghost btn-sm" onClick={() => { setEditingCat(cat); setFormData({ name: cat.name, description: cat.description || '' }); setShowForm(true) }}>Edit</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => toggleStatus(cat)}>
-                        {cat.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 4 : 3} className="h-24 text-center text-muted-foreground">No categories yet</TableCell>
+                </TableRow>
+              ) : categories.map(cat => (
+                <TableRow key={cat.id}>
+                  <TableCell className="font-medium">{cat.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{cat.description || '—'}</TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", cat.status === 'ACTIVE' ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-800 border-gray-200")}>
+                      {cat.status}
+                    </span>
+                  </TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => startEdit(cat)}>
+                          <Edit2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => toggleStatus(cat)} title={cat.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}>
+                          {cat.status === 'ACTIVE' ? <PowerOff className="h-4 w-4 text-destructive" /> : <Power className="h-4 w-4 text-green-600" />}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -339,9 +375,7 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
       .from('profiles')
       .select('*, departments!profiles_department_id_fkey(name)')
       .order('name')
-    if (error) {
-      console.error('Error fetching employees:', error)
-    }
+    if (error) console.error('Error fetching employees:', error)
     setEmployees((data as any) || [])
     setLoading(false)
   }, [supabase])
@@ -364,9 +398,8 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
       new_role: roleModal.newRole,
     })
 
-    if (error) {
-      alert('Error: ' + error.message)
-    } else {
+    if (error) alert('Error: ' + error.message)
+    else {
       setRoleModal(null)
       fetchEmployees()
     }
@@ -374,7 +407,7 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
   }
 
   const handleDeptAssign = async (userId: string, deptId: string) => {
-    await supabase.from('profiles').update({ department_id: deptId || null }).eq('id', userId)
+    await supabase.from('profiles').update({ department_id: deptId === 'NONE' ? null : deptId }).eq('id', userId)
     fetchEmployees()
   }
 
@@ -383,127 +416,127 @@ function EmployeesTab({ isAdmin }: { isAdmin: boolean }) {
     e.email.toLowerCase().includes(search.toLowerCase())
   )
 
-  const roles: UserRole[] = ['ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE']
+  const roles: UserRole[] = ['ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE', 'ADMIN']
 
-  if (loading) return <div className="loading-page"><div className="spinner spinner-lg" style={{ borderTopColor: 'var(--color-primary)' }} /></div>
+  if (loading) return <div className="py-12 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>
 
   return (
-    <div>
-      <div className="filter-bar">
-        <div className="search-wrapper">
-          <span className="search-icon">🔍</span>
-          <input
-            className="search-input"
-            placeholder="Search employees..."
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex bg-muted/50 p-2 rounded-lg border w-full max-w-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search employees..." 
             value={search}
             onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-background"
           />
         </div>
       </div>
 
-      <div className="data-table-wrapper">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Department</th>
-              <th>Role</th>
-              <th>Status</th>
-              {isAdmin && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 6 : 5} className="data-table-empty">No employees found</td></tr>
-            ) : filtered.map(emp => (
-              <tr key={emp.id}>
-                <td className="font-medium">{emp.name}</td>
-                <td className="text-sm text-secondary">{emp.email}</td>
-                <td>
-                  {isAdmin ? (
-                    <select
-                      className="form-select"
-                      value={emp.department_id || ''}
-                      onChange={e => handleDeptAssign(emp.id, e.target.value)}
-                      style={{ padding: '6px 30px 6px 10px', fontSize: '13px', minWidth: '140px' }}
-                    >
-                      <option value="">No Department</option>
-                      {departments.map(d => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="text-sm">{emp.departments?.name || '—'}</span>
-                  )}
-                </td>
-                <td>
-                  <span className={`badge ${
-                    emp.role === 'ADMIN' ? 'badge-danger' :
-                    emp.role === 'ASSET_MANAGER' ? 'badge-allocated' :
-                    emp.role === 'DEPARTMENT_HEAD' ? 'badge-under-maintenance' :
-                    emp.role === 'AUDITOR' ? 'badge-reserved' :
-                    'badge-active'
-                  }`}>
-                    {emp.role.replace('_', ' ')}
-                  </span>
-                </td>
-                <td>
-                  <span className={`badge ${emp.status === 'ACTIVE' ? 'badge-active' : 'badge-retired'}`}>
-                    {emp.status}
-                  </span>
-                </td>
-                {isAdmin && (
-                  <td>
-                    {emp.id === profile?.id ? (
-                      <span className="text-sm text-muted">Current User</span>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="h-24 text-center text-muted-foreground">No employees found</TableCell>
+                </TableRow>
+              ) : filtered.map(emp => (
+                <TableRow key={emp.id}>
+                  <TableCell className="font-medium">{emp.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{emp.email}</TableCell>
+                  <TableCell>
+                    {isAdmin ? (
+                      <Select value={emp.department_id || 'NONE'} onValueChange={v => handleDeptAssign(emp.id, v)}>
+                        <SelectTrigger className="w-[180px] h-8 text-xs">
+                          <SelectValue placeholder="No Department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NONE">No Department</SelectItem>
+                          {departments.map(d => (
+                            <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
-                      <select
-                        className="form-select"
-                        value={emp.role}
-                        onChange={e => setRoleModal({ user: emp, newRole: e.target.value as UserRole })}
-                        style={{ padding: '6px 30px 6px 10px', fontSize: '13px', minWidth: '160px' }}
-                      >
-                        <option value={emp.role} disabled>{emp.role.replace('_', ' ')}</option>
-                        {roles.filter(r => r !== emp.role).map(r => (
-                          <option key={r} value={r}>{r.replace('_', ' ')}</option>
-                        ))}
-                      </select>
+                      <span className="text-sm">{emp.departments?.name || '—'}</span>
                     )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", 
+                      emp.role === 'ADMIN' ? 'bg-red-100 text-red-800 border-red-200' :
+                      emp.role === 'ASSET_MANAGER' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                      emp.role === 'DEPARTMENT_HEAD' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                      'bg-green-100 text-green-800 border-green-200'
+                    )}>
+                      {emp.role.replace('_', ' ')}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", emp.status === 'ACTIVE' ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-800 border-gray-200")}>
+                      {emp.status}
+                    </span>
+                  </TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right">
+                      {emp.id === profile?.id ? (
+                        <span className="text-xs text-muted-foreground mr-4">Current User</span>
+                      ) : (
+                        <Select value={emp.role} onValueChange={v => setRoleModal({ user: emp, newRole: v as UserRole })}>
+                          <SelectTrigger className="w-[160px] h-8 text-xs ml-auto">
+                            <SelectValue placeholder="Change Role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.filter(r => r !== emp.role).map(r => (
+                              <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      {/* Role Change Confirmation Modal */}
-      {roleModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3 className="modal-title">Confirm Role Change</h3>
-              <button className="modal-close" onClick={() => setRoleModal(null)}>✕</button>
+      <Dialog open={!!roleModal} onOpenChange={open => !open && setRoleModal(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Role Change</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to change {roleModal?.user.name}&apos;s role? This action will be logged in the activity log.
+            </DialogDescription>
+          </DialogHeader>
+          {roleModal && (
+            <div className="py-4">
+              <p>
+                Change <strong>{roleModal.user.name}</strong> from{' '}
+                <span className="font-semibold text-primary">{roleModal.user.role.replace('_', ' ')}</span>
+                {' '}to{' '}
+                <span className="font-semibold text-primary">{roleModal.newRole.replace('_', ' ')}</span>?
+              </p>
             </div>
-            <p style={{ marginBottom: 'var(--space-md)' }}>
-              Change <strong>{roleModal.user.name}</strong>&apos;s role from{' '}
-              <span className="badge badge-reserved">{roleModal.user.role.replace('_', ' ')}</span>
-              {' '}to{' '}
-              <span className="badge badge-allocated">{roleModal.newRole.replace('_', ' ')}</span>?
-            </p>
-            <p className="text-sm text-muted" style={{ marginBottom: 'var(--space-lg)' }}>
-              This action will be logged in the activity log.
-            </p>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setRoleModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleRoleChange} disabled={saving}>
-                {saving ? 'Saving...' : 'Confirm Change'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoleModal(null)}>Cancel</Button>
+            <Button onClick={handleRoleChange} disabled={saving}>{saving ? 'Saving...' : 'Confirm Change'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
